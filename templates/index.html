@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>CivicAssist - Your Voice for a Better City</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: "Public Sans", sans-serif;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+    <!-- Top Navigation Bar -->
+    <header class="sticky top-0 z-50 bg-white dark:bg-background-dark border-b border-slate-200 dark:border-slate-800">
+        <div class="max-w-7xl mx-auto px-6 lg:px-10 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="bg-primary p-2 rounded-lg text-white">
+                    <span class="material-symbols-outlined block">account_balance</span>
+                </div>
+                <h2 class="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">CivicAssist</h2>
+            </div>
+            <nav class="hidden md:flex items-center gap-8">
+                <a class="text-sm font-semibold hover:text-primary transition-colors" href="#">Home</a>
+                <a class="text-sm font-semibold hover:text-primary transition-colors" href="#hiw">About</a>
+                <a class="text-sm font-semibold hover:text-primary transition-colors" href="#ser">Services</a>
+                <a class="text-sm font-semibold hover:text-primary transition-colors" href="#foot">Contact</a>
+            </nav>
+            <div class="flex items-center gap-3">
+                <a class="px-5 py-2 text-sm font-bold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
+                    href="{{ url_for('citizen_login') }}">
+                    Citizen Login
+                </a>
+                <a class="px-5 py-2 text-sm font-bold rounded-lg bg-primary text-white hover:bg-blue-600 transition-all shadow-sm"
+                    href="{{ url_for('admin_login') }}">
+                    Admin Portal
+                </a>
+            </div>
+        </div>
+    </header>
+    <main class="max-w-7xl mx-auto">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="px-6 lg:px-10 pt-4">
+            {% for category, message in messages %}
+            <div
+                class="px-4 py-3 rounded-lg mb-2 text-sm font-medium {% if category == 'success' %}bg-green-100 text-green-700{% elif category == 'danger' %}bg-red-100 text-red-700{% elif category == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                {{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        <!-- Hero Section -->
+        <section class="px-6 lg:px-10 py-16 lg:py-24">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div class="flex flex-col gap-8">
+                    <div class="space-y-4">
+                        <span
+                            class="inline-block px-3 py-1 bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider rounded-full">Official
+                            City Platform</span>
+                        <h1
+                            class="text-5xl lg:text-6xl font-black leading-[1.1] tracking-tight text-slate-900 dark:text-white">
+                            Your Voice for a <span class="text-primary">Better City</span>
+                        </h1>
+                        <p class="text-lg text-slate-600 dark:text-slate-400 max-w-lg leading-relaxed">
+                            Report infrastructure issues, track resolutions in real-time, and collaborate with your
+                            local authorities to build a stronger community.
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap gap-4">
+                        <a class="px-8 py-4 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
+                            href="{{ url_for('citizen_register') }}">
+                            <span class="material-symbols-outlined">report_problem</span>
+                            Report an Issue
+                        </a>
+                        <button
+                            class="px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all">
+                            View Live Map
+                        </button>
+                    </div>
+                </div>
+                <div class="relative group">
+                    <div
+                        class="absolute -inset-1 bg-gradient-to-r from-primary to-blue-400 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200">
+                    </div>
+                    <div
+                        class="relative aspect-video bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-2xl border border-slate-100 dark:border-slate-700">
+                        <div class="w-full h-full bg-center bg-cover" data-alt="Modern clean city skyline at sunset"
+                            style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC7aBejGK9owsqdwZGxtUYXmzk-l3xifB5O-WuFJfH9LLVTZmKBtxo3qKJi8xrBEZ6CuioNt-sQ_S0Akn_vSHSLloue-xXzwgVbQM0qQCr268NaJaOcxgDSVmpRcG4qthLoTzerkEQCtTLBMaRJ2n3X7m24s1SsoEpnOO5BGemEB8stP_IdOZyvLNxIxpREgxdSsfsKxtfqxONAprnleQNaP9Mw6YFkTFqEU-yfRHFDEf45IvtgKTK8bzo6fDd-eQT1Z7gFFxFINfk');">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- Stats Grid -->
+        <section id="ser" class="px-6 lg:px-10 py-12">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div
+                    class="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-slate-500 dark:text-slate-400 font-medium">Issues Resolved</p>
+                        <span class="material-symbols-outlined text-green-500">task_alt</span>
+                    </div>
+                    <p class="text-4xl font-black text-slate-900 dark:text-white">12,450</p>
+                    <p class="mt-2 text-sm text-green-600 font-bold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">trending_up</span> +12% this month
+                    </p>
+                </div>
+                <div
+                    class="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-slate-500 dark:text-slate-400 font-medium">Active Reports</p>
+                        <span class="material-symbols-outlined text-primary">pending_actions</span>
+                    </div>
+                    <p class="text-4xl font-black text-slate-900 dark:text-white">842</p>
+                    <p class="mt-2 text-sm text-slate-400 font-medium">Processing across all districts</p>
+                </div>
+                <div
+                    class="bg-white dark:bg-slate-800 p-8 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-slate-500 dark:text-slate-400 font-medium">Avg. Response Time</p>
+                        <span class="material-symbols-outlined text-orange-500">schedule</span>
+                    </div>
+                    <p class="text-4xl font-black text-slate-900 dark:text-white">48 Hours</p>
+                    <p class="mt-2 text-sm text-green-600 font-bold flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">bolt</span> 10% faster than last month
+                    </p>
+                </div>
+            </div>
+        </section>
+        <!-- How It Works -->
+        <section id="hiw" class="px-6 lg:px-10 py-20">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-extrabold text-slate-900 dark:text-white mb-4">How CivicAssist Works</h2>
+                <p class="text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">Your three-step path to an improved
+                    neighborhood and a more responsive government.</p>
+            </div>
+            <div class="grid md:grid-cols-3 gap-12 relative">
+                <!-- Step 1 -->
+                <div class="flex flex-col items-center text-center group">
+                    <div
+                        class="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-3xl">add_a_photo</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-slate-900 dark:text-white">1. Report an Issue</h3>
+                    <p class="text-slate-500 dark:text-slate-400 leading-relaxed">Submit details, location, and photos
+                        of civic problems through our simple interface.</p>
+                </div>
+                <!-- Step 2 -->
+                <div class="flex flex-col items-center text-center group">
+                    <div
+                        class="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-3xl">track_changes</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-slate-900 dark:text-white">2. Track Progress</h3>
+                    <p class="text-slate-500 dark:text-slate-400 leading-relaxed">Receive real-time notifications as
+                        municipal departments verify and assign your report.</p>
+                </div>
+                <!-- Step 3 -->
+                <div class="flex flex-col items-center text-center group">
+                    <div
+                        class="w-16 h-16 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-3xl">verified</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3 text-slate-900 dark:text-white">3. Verified Resolution</h3>
+                    <p class="text-slate-500 dark:text-slate-400 leading-relaxed">Confirm the fix, provide feedback, and
+                        help us improve city maintenance services.</p>
+                </div>
+            </div>
+        </section>
+        <!-- Categories Section -->
+        <section class="px-6 lg:px-10 py-20 bg-slate-50 dark:bg-slate-900/50 rounded-3xl mb-20 mx-4">
+            <div class="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
+                <div class="max-w-xl">
+                    <h2 class="text-3xl font-extrabold text-slate-900 dark:text-white mb-4">Common Report Categories
+                    </h2>
+                    <p class="text-slate-500 dark:text-slate-400">Select a category to see current reports or start your
+                        own submission.</p>
+                </div>
+                <button class="text-primary font-bold flex items-center gap-2 hover:gap-3 transition-all">
+                    View All Categories <span class="material-symbols-outlined">arrow_forward</span>
+                </button>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div
+                    class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all cursor-pointer">
+                    <span class="material-symbols-outlined text-primary mb-4 text-3xl">road</span>
+                    <h4 class="font-bold text-slate-900 dark:text-white">Roads &amp; Potholes</h4>
+                    <p class="text-xs text-slate-400 mt-2">240 Active Reports</p>
+                </div>
+                <div
+                    class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all cursor-pointer">
+                    <span class="material-symbols-outlined text-primary mb-4 text-3xl">delete</span>
+                    <h4 class="font-bold text-slate-900 dark:text-white">Waste Management</h4>
+                    <p class="text-xs text-slate-400 mt-2">115 Active Reports</p>
+                </div>
+                <div
+                    class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all cursor-pointer">
+                    <span class="material-symbols-outlined text-primary mb-4 text-3xl">lightbulb</span>
+                    <h4 class="font-bold text-slate-900 dark:text-white">Street Lighting</h4>
+                    <p class="text-xs text-slate-400 mt-2">86 Active Reports</p>
+                </div>
+                <div
+                    class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 hover:shadow-md transition-all cursor-pointer">
+                    <span class="material-symbols-outlined text-primary mb-4 text-3xl">water_drop</span>
+                    <h4 class="font-bold text-slate-900 dark:text-white">Water Supply</h4>
+                    <p class="text-xs text-slate-400 mt-2">42 Active Reports</p>
+                </div>
+            </div>
+        </section>
+        <!-- CTA Section -->
+        <section class="px-6 lg:px-10 py-16">
+            <div class="bg-primary rounded-[2rem] p-12 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
+                <div class="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24"></div>
+                <div class="relative z-10 max-w-3xl">
+                    <h2 class="text-4xl font-black mb-6">Are you a municipal employee?</h2>
+                    <p class="text-xl text-blue-100 mb-10 leading-relaxed">Access the administrative dashboard to manage
+                        reports, assign work orders to field crews, and communicate directly with citizens.</p>
+                    <div class="flex flex-wrap gap-4">
+                        <a class="px-8 py-4 bg-white text-primary font-bold rounded-xl hover:bg-slate-50 transition-all shadow-xl"
+                            href="{{ url_for('admin_login') }}">
+                            Admin Login
+                        </a>
+                        <button
+                            class="px-8 py-4 bg-blue-600 text-white border border-blue-400 font-bold rounded-xl hover:bg-blue-700 transition-all">
+                            Partner with Us
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <!-- Footer -->
+    <footer id="foot"
+        class="bg-white dark:bg-background-dark border-t border-slate-200 dark:border-slate-800 pt-20 pb-10">
+        <div class="max-w-7xl mx-auto px-6 lg:px-10">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
+                <div>
+                    <div class="flex items-center gap-3 mb-6">
+                        <div class="bg-primary p-2 rounded-lg text-white">
+                            <span class="material-symbols-outlined block">account_balance</span>
+                        </div>
+                        <h2 class="text-xl font-extrabold tracking-tight">CivicAssist</h2>
+                    </div>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">
+                        A modern digital bridge between citizens and municipal authorities, dedicated to building
+                        smarter, cleaner, and safer cities for everyone.
+                    </p>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-6">Quick Links</h4>
+                    <ul class="space-y-4 text-sm text-slate-500 dark:text-slate-400">
+                        <li><a class="hover:text-primary" href="#">Track Report</a></li>
+                        <li><a class="hover:text-primary" href="#">Service Directory</a></li>
+                        <li><a class="hover:text-primary" href="#">Department List</a></li>
+                        <li><a class="hover:text-primary" href="#">FAQ</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-6">Legal</h4>
+                    <ul class="space-y-4 text-sm text-slate-500 dark:text-slate-400">
+                        <li><a class="hover:text-primary" href="#">Privacy Policy</a></li>
+                        <li><a class="hover:text-primary" href="#">Terms of Service</a></li>
+                        <li><a class="hover:text-primary" href="#">Accessibility</a></li>
+                        <li><a class="hover:text-primary" href="#">Data Policy</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-6">Contact Support</h4>
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+                            <span class="material-symbols-outlined text-primary">call</span>
+                            <span>1-800-CITY-HELP</span>
+                        </div>
+                        <div class="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
+                            <span class="material-symbols-outlined text-primary">mail</span>
+                            <span>support@civicassist.gov</span>
+                        </div>
+                        <div class="pt-4 flex gap-4">
+                            <a class="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center hover:bg-primary hover:text-white transition-all"
+                                href="#">
+                                <span class="material-symbols-outlined text-xl">share</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div
+                class="border-t border-slate-100 dark:border-slate-800 pt-10 flex flex-col md:flex-row justify-between items-center gap-6">
+                <p class="text-sm text-slate-400">© 2024 CivicAssist Management Systems. All rights reserved.</p>
+                <div class="flex gap-8 text-sm text-slate-400">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                        System Status: Operational
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+</body>
+
+</html>

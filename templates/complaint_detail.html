@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Complaint Details - CivicAssist</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+    <div class="max-w-4xl mx-auto p-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="mb-4">
+            {% for category, message in messages %}
+            <div
+                class="px-4 py-3 rounded-lg mb-2 text-sm font-medium {% if category == 'success' %}bg-green-100 text-green-700{% elif category == 'danger' %}bg-red-100 text-red-700{% elif category == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                {{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        <a href="{{ url_for('citizen_dashboard') }}" class="text-primary hover:underline">&larr; Back to Dashboard</a>
+        <h1 class="text-2xl font-bold mt-4">Complaint #CA-{{ complaint.id }}</h1>
+        <p class="text-sm text-slate-500">Submitted: {{ complaint.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+
+        <div
+            class="mt-6 bg-white dark:bg-slate-900 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800">
+            <h3 class="font-bold text-lg">Category: {{ complaint.complaint_type|capitalize }}</h3>
+            <p class="mt-2 text-slate-700 dark:text-slate-300">{{ complaint.description }}</p>
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <p class="text-xs text-slate-500">Status</p>
+                    <p class="font-semibold">{{ complaint.status }}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500">Department</p>
+                    <p class="font-semibold">{{ complaint.department or 'N/A' }}</p>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <p class="text-xs text-slate-500">Location</p>
+                <p class="font-mono text-sm">Lat: {{ complaint.latitude or 'N/A' }}, Long: {{ complaint.longitude or
+                    'N/A' }}</p>
+            </div>
+
+            {% if complaint.image_path %}
+            <div class="mt-6">
+                <p class="text-xs text-slate-500">Attachment</p>
+                <a href="{{ url_for('static', filename=complaint.image_path) }}" target="_blank"
+                    class="inline-block mt-2">
+                    <img src="{{ url_for('static', filename=complaint.image_path) }}" alt="Complaint image"
+                        class="w-full max-w-md rounded-lg border border-slate-200" />
+                </a>
+            </div>
+            {% endif %}
+
+            {% if complaint.remarks %}
+            <div class="mt-4">
+                <p class="text-xs text-slate-500">Admin Remarks</p>
+                <p class="text-sm">{{ complaint.remarks }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+
+</html>

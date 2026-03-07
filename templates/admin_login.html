@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Admin Login | CivicAssist</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Google Fonts: Public Sans & Material Symbols -->
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: "Public Sans", sans-serif;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark font-display min-h-screen transition-colors duration-200">
+    <div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+        <!-- Top Navigation Bar -->
+        <header
+            class="flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark px-6 py-3 lg:px-10">
+            <div class="flex items-center gap-3 text-slate-900 dark:text-white">
+                <div class="flex items-center justify-center p-1.5 bg-primary rounded-lg text-white">
+                    <span class="material-symbols-outlined text-lg">account_balance</span>
+                </div>
+                <h2 class="text-lg font-bold leading-tight tracking-tight">CivicAssist</h2>
+            </div>
+            <div class="flex flex-1 justify-end gap-4 sm:gap-8 items-center">
+                <nav class="hidden md:flex items-center gap-6">
+                    <a class="text-slate-600 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors"
+                        href="#">Help</a>
+                    <a class="text-slate-600 dark:text-slate-300 text-sm font-medium hover:text-primary transition-colors"
+                        href="#">Security</a>
+                </nav>
+                <button
+                    class="flex min-w-[100px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all">
+                    <span>Citizen Portal</span>
+                </button>
+                <a class="hidden md:flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary/10 text-primary text-sm font-bold"
+                    href="{{ url_for('citizen_login') }}">
+                    <span>Municipal Login</span>
+                </a>
+            </div>
+        </header>
+        <!-- Main Content Area (Centered Login Card) -->
+        <main class="flex-1 flex flex-col items-center justify-center px-4 py-12">
+            <div
+                class="w-full max-w-[480px] bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 p-8 md:p-10">
+                <!-- Branding & Title -->
+                <div class="text-center mb-8">
+                    <div
+                        class="inline-flex items-center justify-center size-14 rounded-full bg-primary/10 text-primary mb-4">
+                        <span class="material-symbols-outlined text-3xl">admin_panel_settings</span>
+                    </div>
+                    <h1 class="text-slate-900 dark:text-white text-3xl font-bold tracking-tight">Admin Portal</h1>
+                    <p class="text-slate-500 dark:text-slate-400 text-base mt-2">Access the CivicAssist management
+                        dashboard</p>
+                </div>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                    <div
+                        class="px-4 py-3 rounded-lg mb-2 text-sm font-medium {% if category == 'success' %}bg-green-100 text-green-700{% elif category == 'danger' %}bg-red-100 text-red-700{% elif category == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                        {{ message }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
+                <!-- Login Form -->
+                <form method="post" action="{{ url_for('admin_login') }}" class="space-y-6">
+                    <div class="flex flex-col gap-2">
+                        <label class="text-slate-700 dark:text-slate-200 text-sm font-semibold flex items-center gap-2">
+                            Username or Email Address
+                        </label>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">person</span>
+                            <input name="username"
+                                class="form-input block w-full pl-11 pr-4 py-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-slate-400 transition-all"
+                                placeholder="Enter your admin credentials" required="" type="text" />
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex justify-between items-center">
+                            <label class="text-slate-700 dark:text-slate-200 text-sm font-semibold">Password</label>
+                            <a class="text-xs text-primary font-medium hover:underline" href="#">Forgot Password?</a>
+                        </div>
+                        <div class="relative">
+                            <span
+                                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">lock</span>
+                            <input name="password"
+                                class="form-input block w-full pl-11 pr-12 py-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 focus:border-primary placeholder:text-slate-400 transition-all"
+                                placeholder="Enter your password" required="" type="password" />
+                            <button
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                                type="button">
+                                <span class="material-symbols-outlined text-xl">visibility</span>
+                            </button>
+                        </div>
+                    </div>
+                    <button
+                        class="w-full flex items-center justify-center gap-2 rounded-lg bg-primary py-4 text-white text-base font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
+                        type="submit">
+                        <span class="material-symbols-outlined text-xl">login</span>
+                        Sign In
+                    </button>
+                </form>
+                <!-- Footer Actions -->
+                <div class="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800 text-center">
+                    <p class="text-slate-600 dark:text-slate-400 text-sm">
+                        Need an admin account?
+                        <a class="text-primary font-bold hover:underline ml-1"
+                            href="{{ url_for('admin_register') }}">Register here</a>
+                    </p>
+                </div>
+            </div>
+            <!-- Security Badge -->
+            <div
+                class="mt-8 flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs font-medium uppercase tracking-widest">
+                <span class="material-symbols-outlined text-sm">verified_user</span>
+                Official Municipal Access Only
+            </div>
+        </main>
+        <!-- Footer -->
+        <footer
+            class="px-6 py-6 text-center border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-background-dark">
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-slate-500 dark:text-slate-400 text-sm">© 2024 CivicAssist. All municipal rights reserved.
+                </p>
+                <div class="flex items-center gap-6">
+                    <a class="text-slate-500 dark:text-slate-400 text-sm hover:text-primary transition-colors"
+                        href="#">Privacy Policy</a>
+                    <a class="text-slate-500 dark:text-slate-400 text-sm hover:text-primary transition-colors"
+                        href="#">Terms of Service</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+</body>
+
+</html>

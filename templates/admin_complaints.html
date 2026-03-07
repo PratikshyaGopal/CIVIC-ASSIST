@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>All Complaints — CivicAssist Admin</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#f6f7f8", "background-dark": "#101922" }, fontFamily: { "display": ["Public Sans", "sans-serif"] }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" } } }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Public Sans', sans-serif
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased">
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <aside
+            class="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hidden lg:flex flex-col">
+            <div class="p-6 flex items-center gap-3">
+                <div class="bg-primary rounded-lg p-1.5 flex items-center justify-center text-white">
+                    <span class="material-symbols-outlined">account_balance</span>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight">CivicAssist</h1>
+                    <p class="text-xs text-slate-500">Admin Console</p>
+                </div>
+            </div>
+            <nav class="flex-1 px-4 space-y-1">
+                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2 mt-4">Main Menu
+                </div>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    href="{{ url_for('admin_dashboard') }}"><span
+                        class="material-symbols-outlined text-[22px]">dashboard</span><span
+                        class="text-sm">Overview</span></a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium"
+                    href="{{ url_for('admin_complaints') }}"><span
+                        class="material-symbols-outlined text-[22px]">inbox</span><span class="text-sm">All
+                        Complaints</span></a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    href="{{ url_for('admin_reports') }}"><span
+                        class="material-symbols-outlined text-[22px]">bar_chart</span><span class="text-sm">Department
+                        Reports</span></a>
+                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2 mt-8">System</div>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    href="{{ url_for('admin_users') }}"><span
+                        class="material-symbols-outlined text-[22px]">group</span><span class="text-sm">User
+                        Management</span></a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    href="{{ url_for('admin_workers') }}"><span
+                        class="material-symbols-outlined text-[22px]">engineering</span><span
+                        class="text-sm">Workers</span></a>
+                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    href="{{ url_for('admin_settings') }}"><span
+                        class="material-symbols-outlined text-[22px]">settings</span><span class="text-sm">Admin
+                        Settings</span></a>
+            </nav>
+            <div class="p-4 border-t border-slate-200 dark:border-slate-800">
+                <div class="flex items-center gap-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                    <div
+                        class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                        {{ admin.name[:2]|upper if admin else 'AD' }}</div>
+                    <div class="overflow-hidden">
+                        <p class="text-sm font-semibold truncate">{{ admin.name if admin else 'Admin' }}</p>
+                        <p class="text-xs text-slate-500 truncate">{{ admin.email if admin else '' }}</p>
+                    </div>
+                </div>
+                <a href="{{ url_for('admin_logout') }}"
+                    class="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors"><span
+                        class="material-symbols-outlined text-sm">logout</span>Logout</a>
+            </div>
+        </aside>
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col min-w-0 bg-background-light dark:bg-background-dark">
+            <header
+                class="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center px-8 sticky top-0 z-10">
+                <h2 class="text-xl font-bold tracking-tight">All Complaints</h2>
+            </header>
+            <div class="p-8 space-y-6">
+                {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="mb-4">{%
+                    for category, message in messages %}<div
+                        class="px-4 py-3 rounded-lg mb-2 text-sm font-medium {% if category == 'success' %}bg-green-100 text-green-700{% elif category == 'danger' %}bg-red-100 text-red-700{% elif category == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                        {{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
+
+                <!-- Filters -->
+                <div class="flex flex-wrap gap-3 items-center">
+                    <input id="searchInput" oninput="filterTable()" type="text" placeholder="Search..."
+                        class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-4 text-sm w-64 focus:ring-2 focus:ring-primary/20" />
+                    <select id="filterDept" onchange="filterTable()"
+                        class="text-sm border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg py-2 pl-3 pr-10">
+                        <option value="">All Departments</option>
+                        <option value="Sanitation">Sanitation</option>
+                        <option value="Roads & Traffic">Roads & Traffic</option>
+                        <option value="Water Supply">Water Supply</option>
+                        <option value="Electricity">Electricity</option>
+                        <option value="Unassigned">Unassigned</option>
+                    </select>
+                    <select id="filterStatus" onchange="filterTable()"
+                        class="text-sm border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg py-2 pl-3 pr-10">
+                        <option value="">All Statuses</option>
+                        <option value="Pending">Pending</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Resolved">Resolved</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                </div>
+
+                <!-- Complaints Table -->
+                <div
+                    class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 dark:bg-slate-800/50">
+                                <tr>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">ID
+                                    </th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        Citizen & Subject</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        Department</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        Worker</th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date
+                                    </th>
+                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        Status</th>
+                                    <th
+                                        class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">
+                                        Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                {% for c in complaints %}
+                                <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap font-mono text-sm text-slate-600">#CR-{{ c.id
+                                        }}</td>
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center gap-3">
+                                            <div
+                                                class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-xs text-primary">
+                                                {{ c.author.name[:2]|upper if c.author else 'NA' }}</div>
+                                            <div>
+                                                <p class="text-sm font-semibold">{{ c.author.name if c.author else
+                                                    'Unknown' }}</p>
+                                                <p class="text-xs text-slate-500">{{ c.complaint_type|capitalize }}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4"><span
+                                            class="text-sm bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{{
+                                            c.department or 'Unassigned' }}</span></td>
+                                    <td class="px-6 py-4 text-sm">
+                                        {% if c.assigned_worker %}
+                                        <span
+                                            class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-1 rounded text-xs font-medium">{{
+                                            c.assigned_worker.name }}</span>
+                                        {% else %}
+                                        <span class="text-slate-400 text-xs">Unassigned</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-slate-500">{{ c.created_at.strftime('%b %d, %Y')
+                                        }}</td>
+                                    <td class="px-6 py-4">
+                                        <span
+                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold {% if c.status == 'Resolved' %}bg-green-100 text-green-700{% elif c.status == 'In Progress' %}bg-primary/10 text-primary{% elif c.status == 'Rejected' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">{{
+                                            c.status }}</span>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <div class="flex items-center justify-end gap-2">
+                                            <button
+                                                onclick="openModal({{ c.id }}, '{{ c.status }}', '{{ c.department or 'Unassigned' }}', {{ (c.remarks or '')|tojson }}, '{{ c.worker_id or '' }}')"
+                                                class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                                title="Update"><span
+                                                    class="material-symbols-outlined text-xl">edit_square</span></button>
+                                            <a href="{{ url_for('view_complaint', complaint_id=c.id) }}"
+                                                class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                                title="View"><span
+                                                    class="material-symbols-outlined text-xl">visibility</span></a>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="px-6 py-8 text-center text-slate-500">No complaints found.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-800">
+                        <p class="text-sm text-slate-500">Showing {{ complaints|length }} entries</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Update Modal -->
+    <div id="updateModal" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div
+            class="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-8 border border-slate-200 dark:border-slate-800">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold">Update Complaint</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+            </div>
+            <form id="updateForm" method="post">
+                <input type="hidden" name="next" value="{{ url_for('admin_complaints') }}">
+                <div class="space-y-4">
+                    <div><label
+                            class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Status</label>
+                        <select id="status" name="status"
+                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Resolved">Resolved</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                    </div>
+                    <div><label
+                            class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Department</label>
+                        <select id="department" name="department"
+                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
+                            <option value="Unassigned">Unassigned</option>
+                            <option value="Sanitation">Sanitation</option>
+                            <option value="Roads & Traffic">Roads & Traffic</option>
+                            <option value="Water Supply">Water Supply</option>
+                            <option value="Electricity">Electricity</option>
+                            <option value="Public Health">Public Health</option>
+                        </select>
+                    </div>
+                    <div><label
+                            class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Remarks</label>
+                        <textarea id="remarks" name="remarks"
+                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5 min-h-[80px]"
+                            placeholder="Add remarks..."></textarea>
+                    </div>
+                    <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Assign
+                            Worker</label>
+                        <select id="worker_id" name="worker_id"
+                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
+                            <option value="">-- No Worker --</option>
+                            {% for w in workers %}<option value="{{ w.id }}">{{ w.name }} ({{ w.department }}{% if
+                                w.area %}, {{ w.area }}{% endif %})</option>{% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined">save</span>Update Complaint</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        function openModal(id, status, dept, remarks, workerId) {
+            document.getElementById('updateForm').action = '/admin/update_complaint/' + id;
+            document.getElementById('status').value = status;
+            document.getElementById('department').value = dept;
+            document.getElementById('remarks').value = remarks;
+            if (workerId) document.getElementById('worker_id').value = workerId;
+            document.getElementById('updateModal').style.display = 'flex';
+        }
+        function closeModal() { document.getElementById('updateModal').style.display = 'none'; }
+        window.addEventListener('click', function (e) { if (e.target.id === 'updateModal') closeModal(); });
+        function filterTable() {
+            var search = (document.getElementById('searchInput').value || '').toLowerCase();
+            var dept = document.getElementById('filterDept').value;
+            var status = document.getElementById('filterStatus').value;
+            document.querySelectorAll('tbody tr').forEach(function (row) {
+                if (row.cells.length < 5) return;
+                var text = row.textContent.toLowerCase();
+                var rDept = row.cells[2].textContent.trim();
+                var rStatus = row.cells[5].textContent.trim();
+                row.style.display = (!search || text.indexOf(search) > -1) && (!dept || rDept === dept) && (!status || rStatus === status) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+
+</html>
