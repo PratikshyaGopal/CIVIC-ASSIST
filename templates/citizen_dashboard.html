@@ -161,7 +161,7 @@
                         <p class="text-xs text-slate-500 truncate">{{ citizen.email }}</p>
                     </div>
                 </div>
-                <a href="{{ url_for('citizen_logout') }}"
+                <a id="citizen-logout-link" href="{{ url_for('citizen_logout') }}"
                     class="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors">
                     <span class="material-symbols-outlined text-sm">logout</span>
                     Logout
@@ -494,9 +494,11 @@
                                     </div>
                                     <div>
                                         <label
-                                            class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email</label>
+                                            class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email
+                                            <span class="text-slate-400 font-normal">(managed by Firebase)</span></label>
                                         <input type="email" name="email" value="{{ citizen.email }}"
-                                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary focus:border-primary outline-none text-slate-900 dark:text-white transition-all" />
+                                            readonly
+                                            class="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-slate-500 dark:text-slate-400 cursor-not-allowed transition-all" />
                                     </div>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -524,13 +526,10 @@
                                 </div>
                                 <hr class="border-slate-100 dark:border-slate-800" />
                                 <div>
-                                    <label
-                                        class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">New
-                                        Password <span class="text-slate-400 font-normal">(leave blank to keep
-                                            unchanged)</span></label>
-                                    <input type="password" name="new_password"
-                                        class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary focus:border-primary outline-none text-slate-900 dark:text-white transition-all"
-                                        placeholder="Min 6 characters" />
+                                    <p class="text-sm text-slate-500 dark:text-slate-400">
+                                        Password is managed by Firebase Authentication. Use the
+                                        <strong>Forgot password</strong> flow on the login page to reset it.
+                                    </p>
                                 </div>
                                 <div class="pt-2">
                                     <button type="submit"
@@ -765,6 +764,27 @@
                 if (hint)  { hint.textContent = 'JPG, PNG up to 5MB'; hint.style.color = ''; }
                 if (label) { label.style.borderColor = ''; label.style.backgroundColor = ''; }
             }
+        }
+    </script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+        import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+        const firebaseConfig = {{ firebase_web_config|tojson }};
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const logoutLink = document.getElementById('citizen-logout-link');
+
+        if (logoutLink) {
+            logoutLink.addEventListener('click', async (event) => {
+                event.preventDefault();
+                try {
+                    await signOut(auth);
+                } catch (error) {
+                    console.warn('Firebase sign out failed:', error);
+                }
+                window.location.href = logoutLink.href;
+            });
         }
     </script>
 </body>

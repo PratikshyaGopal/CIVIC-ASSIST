@@ -1,5 +1,5 @@
 
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_, func  # Needed for OR queries and aggregation
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -7,6 +7,15 @@ from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
 import json
+import re
+
+try:
+    import firebase_admin
+    from firebase_admin import auth as firebase_auth, credentials as firebase_credentials
+except ImportError:
+    firebase_admin = None
+    firebase_auth = None
+    firebase_credentials = None
 
 app = Flask(__name__)
 
@@ -16,6 +25,25 @@ app.secret_key = 'dev_secret_key_change_in_production'
 # SQLite Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///civic_assist.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Firebase Web SDK Configuration (used by templates)
+DEFAULT_FIREBASE_WEB_CONFIG = {
+    "apiKey": "AIzaSyDe3fQO4t5Wnp4URpQOv5fsfDoKOuxrO4I",
+    "authDomain": "civicassist-39685.firebaseapp.com",
+    "projectId": "civicassist-39685",
+    "storageBucket": "civicassist-39685.firebasestorage.app",
+    "messagingSenderId": "999705978680",
+    "appId": "1:999705978680:web:2422d5c56de64d1b1483cd",
+    "measurementId": "G-3P3ZTB9DQ2",
+}
+firebase_web_config_json = os.getenv('FIREBASE_WEB_CONFIG_JSON')
+if firebase_web_config_json:
+    try:
+        app.config['FIREBASE_WEB_CONFIG'] = json.loads(firebase_web_config_json)
+    except json.JSONDecodeError:
+        app.config['FIREBASE_WEB_CONFIG'] = DEFAULT_FIREBASE_WEB_CONFIG
+else:
+    app.config['FIREBASE_WEB_CONFIG'] = DEFAULT_FIREBASE_WEB_CONFIG
 
 # File Uploads
 UPLOAD_FOLDER = 'static/uploads'
@@ -29,6 +57,7 @@ app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB limit
 
 # Initialize DB
 db = SQLAlchemy(app)
+_firebase_init_error = None
 
 # ==================== DATABASE MODELS ====================
 
@@ -75,7 +104,90 @@ class Complaint(db.Model):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def ensure_firebase_admin_initialized():
+    global _firebase_init_error
+
+    if firebase_admin is None:
+        return 'firebase-admin package is not installed.'
+
+    if firebase_admin._apps:
+        return None
+
+    if _firebase_init_error:
+        return _firebase_init_error
+
+    service_account_json = os.getenv('FIREBASE_SERVICE_ACCOUNT_JSON')
+    service_account_path = os.getenv('FIREBASE_SERVICE_ACCOUNT_PATH')
+
+    try:
+        if service_account_json:
+            cred = firebase_credentials.Certificate(json.loads(service_account_json))
+        elif service_account_path:
+            if not os.path.exists(service_account_path):
+                _firebase_init_error = f'Service account file not found: {service_account_path}'
+                return _firebase_init_error
+            cred = firebase_credentials.Certificate(service_account_path)
+        else:
+            cred = firebase_credentials.ApplicationDefault()
+
+        firebase_admin.initialize_app(cred)
+        _firebase_init_error = None
+        return None
+    except Exception as exc:
+        _firebase_init_error = str(exc)
+        return _firebase_init_error
+
+def verify_firebase_token_from_request():
+    data = request.get_json(silent=True) or {}
+    id_token = data.get('idToken')
+    if not id_token:
+        return None, 'Missing Firebase ID token.'
+
+    init_error = ensure_firebase_admin_initialized()
+    if init_error:
+        return None, 'Firebase Admin SDK is not configured on the server.'
+
+    try:
+        decoded_token = firebase_auth.verify_id_token(id_token)
+    except Exception:
+        return None, 'Invalid or expired Firebase session. Please sign in again.'
+
+    email = (decoded_token.get('email') or '').strip().lower()
+    if not email:
+        return None, 'Firebase account email is missing.'
+
+    decoded_token['email'] = email
+    return decoded_token, None
+
+def set_citizen_session(user):
+    session['user_id'] = user.id
+    session['username'] = user.username
+    session['is_admin'] = user.is_admin
+    session['citizen_logged_in'] = True
+    session.pop('admin_logged_in', None)
+
+def sanitize_username(raw_value):
+    raw_value = (raw_value or '').strip().lower()
+    cleaned = re.sub(r'[^a-z0-9_]+', '_', raw_value)
+    cleaned = re.sub(r'_+', '_', cleaned).strip('_')
+    return cleaned[:30] or 'citizen'
+
+def make_unique_username(seed_value):
+    base = sanitize_username(seed_value)
+    candidate = base
+    suffix = 1
+    while User.query.filter(func.lower(User.username) == candidate.lower()).first():
+        suffix += 1
+        suffix_text = f"_{suffix}"
+        trimmed_base = base[:max(1, 30 - len(suffix_text))]
+        candidate = f"{trimmed_base}{suffix_text}"
+    return candidate
+
 # ==================== ROUTES ====================
+
+@app.context_processor
+def inject_firebase_config():
+    return {'firebase_web_config': app.config.get('FIREBASE_WEB_CONFIG', {})}
 
 @app.route('/')
 def index():
@@ -86,62 +198,140 @@ def index():
 @app.route('/citizen/register', methods=['GET', 'POST'])
 def citizen_register():
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        # Check if username OR email already exists
-        existing_user = User.query.filter(
-            or_(User.username == username, User.email == email)
-        ).first()
-        
-        if existing_user:
-            flash('Username or Email already exists! Please try logging in.', 'danger')
-            return redirect(url_for('citizen_register'))
-            
-        # Create new user
-        hashed_pw = generate_password_hash(password)
-        new_user = User(
-            username=username,
-            password_hash=hashed_pw,
-            name=request.form.get('name'),
-            email=email,
-            phone=request.form.get('phone'),
-            address=request.form.get('address'),
-            is_admin=False
-        )
-        
-        db.session.add(new_user)
-        db.session.commit()
-        
-        flash('Registration successful! Please login.', 'success')
-        return redirect(url_for('citizen_login'))
+        flash('Registration is now handled by Firebase Authentication. Please use the web form.', 'warning')
+        return redirect(url_for('citizen_register'))
     
     return render_template('citizen_register.html')
 
 @app.route('/citizen/login', methods=['GET', 'POST'])
 def citizen_login():
     if request.method == 'POST':
-        # Input can be username OR email (field name in HTML is 'username')
-        login_input = request.form.get('username')
-        password = request.form.get('password')
-        
-        # FIXED: Check against both username and email columns
-        user = User.query.filter(
-            or_(User.username == login_input, User.email == login_input)
-        ).first()
-        
-        if user and check_password_hash(user.password_hash, password):
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['is_admin'] = user.is_admin
-            session['citizen_logged_in'] = True
-            flash(f'Welcome back, {user.name}!', 'success')
-            return redirect(url_for('citizen_dashboard'))
-        else:
-            flash('Invalid credentials. Please check your username/email and password.', 'danger')
+        flash('Login is now handled by Firebase Authentication. Please use the web form.', 'warning')
+        return redirect(url_for('citizen_login'))
             
     return render_template('citizen_login.html')
+
+@app.route('/citizen/firebase/resolve-email', methods=['POST'])
+def citizen_firebase_resolve_email():
+    data = request.get_json(silent=True) or {}
+    login_input = (data.get('loginInput') or '').strip()
+    if not login_input:
+        return jsonify({'error': 'Username or email is required.'}), 400
+
+    if '@' in login_input:
+        return jsonify({'email': login_input.lower()}), 200
+
+    user = User.query.filter(
+        func.lower(User.username) == login_input.lower(),
+        User.is_admin == False
+    ).first()
+
+    if not user:
+        return jsonify({'error': 'No citizen account found for that username.'}), 404
+
+    return jsonify({'email': user.email}), 200
+
+@app.route('/citizen/firebase/register', methods=['POST'])
+def citizen_firebase_register():
+    decoded_token, token_error = verify_firebase_token_from_request()
+    if token_error:
+        return jsonify({'error': token_error}), 401
+
+    data = request.get_json(silent=True) or {}
+    uid = (decoded_token.get('uid') or '').strip()
+    email = decoded_token['email']
+    username = (data.get('username') or '').strip()
+    name = (data.get('name') or '').strip()
+    phone = (data.get('phone') or '').strip()
+    address = (data.get('address') or '').strip()
+
+    if not username:
+        return jsonify({'error': 'Username is required.'}), 400
+    if len(username) < 3:
+        return jsonify({'error': 'Username must be at least 3 characters.'}), 400
+    if not name:
+        return jsonify({'error': 'Full name is required.'}), 400
+
+    existing_by_email = User.query.filter(func.lower(User.email) == email).first()
+    existing_by_username = User.query.filter(func.lower(User.username) == username.lower()).first()
+
+    if existing_by_email and existing_by_email.is_admin:
+        return jsonify({'error': 'This email is reserved for an admin account.'}), 403
+
+    if existing_by_username and (not existing_by_email or existing_by_username.id != existing_by_email.id):
+        return jsonify({'error': 'Username already exists. Choose another one.'}), 409
+
+    if existing_by_email:
+        user = existing_by_email
+        user.username = username
+        user.name = name
+        user.phone = phone
+        user.address = address
+        user.password_hash = generate_password_hash(f"firebase::{uid or email}")
+    else:
+        user = User(
+            username=username,
+            password_hash=generate_password_hash(f"firebase::{uid or email}"),
+            name=name,
+            email=email,
+            phone=phone,
+            address=address,
+            is_admin=False
+        )
+        db.session.add(user)
+
+    db.session.commit()
+    set_citizen_session(user)
+
+    return jsonify({
+        'success': True,
+        'message': f'Welcome, {user.name}!',
+        'redirect_url': url_for('citizen_dashboard')
+    }), 200
+
+@app.route('/citizen/firebase/login', methods=['POST'])
+def citizen_firebase_login():
+    decoded_token, token_error = verify_firebase_token_from_request()
+    if token_error:
+        return jsonify({'error': token_error}), 401
+
+    email = decoded_token['email']
+    uid = (decoded_token.get('uid') or '').strip()
+    display_name = (decoded_token.get('name') or '').strip()
+
+    user = User.query.filter(
+        func.lower(User.email) == email,
+        User.is_admin == False
+    ).first()
+
+    admin_user = User.query.filter(
+        func.lower(User.email) == email,
+        User.is_admin == True
+    ).first()
+    if admin_user:
+        return jsonify({'error': 'This account is restricted to the admin portal.'}), 403
+
+    if not user:
+        fallback_name = display_name or email.split('@')[0]
+        user = User(
+            username=make_unique_username(fallback_name),
+            password_hash=generate_password_hash(f"firebase::{uid or email}"),
+            name=fallback_name,
+            email=email,
+            phone='',
+            address='',
+            is_admin=False
+        )
+        db.session.add(user)
+        db.session.commit()
+
+    set_citizen_session(user)
+
+    return jsonify({
+        'success': True,
+        'message': f'Welcome back, {user.name}!',
+        'redirect_url': url_for('citizen_dashboard')
+    }), 200
 
 # --- CITIZEN DASHBOARD ---
 
@@ -212,14 +402,16 @@ def citizen_update_profile():
         return redirect(url_for('citizen_login'))
     
     user.name = request.form.get('name', user.name)
-    user.email = request.form.get('email', user.email)
+    submitted_email = (request.form.get('email') or '').strip().lower()
+    if submitted_email and submitted_email != (user.email or '').lower():
+        flash('Email is managed by Firebase Authentication and cannot be changed here.', 'info')
+
     user.phone = request.form.get('phone', user.phone)
     user.address = request.form.get('address', user.address)
     
     new_password = request.form.get('new_password')
-    if new_password and len(new_password) >= 6:
-        user.password_hash = generate_password_hash(new_password)
-        flash('Password updated.', 'success')
+    if new_password:
+        flash('Password updates are managed by Firebase Authentication.', 'info')
     
     db.session.commit()
     flash('Profile updated successfully.', 'success')

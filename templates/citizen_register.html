@@ -52,29 +52,6 @@
         }
     </style>
 </head>
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyDe3fQO4t5Wnp4URpQOv5fsfDoKOuxrO4I",
-    authDomain: "civicassist-39685.firebaseapp.com",
-    projectId: "civicassist-39685",
-    storageBucket: "civicassist-39685.firebasestorage.app",
-    messagingSenderId: "999705978680",
-    appId: "1:999705978680:web:2422d5c56de64d1b1483cd",
-    measurementId: "G-3P3ZTB9DQ2"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
 <body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
     <!-- Top Navigation Bar -->
     <header
@@ -164,7 +141,8 @@
                         <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Create Your Account</h2>
                         <p class="text-slate-500 text-sm mt-1">Please fill in your legal information to register.</p>
                     </div>
-                    <form method="post" action="{{ url_for('citizen_register') }}" class="flex flex-col gap-5">
+                    <form id="citizen-register-form" method="post" action="{{ url_for('citizen_register') }}" class="flex flex-col gap-5">
+                        <div id="register-error" class="hidden px-4 py-3 rounded-lg text-sm font-medium bg-red-100 text-red-700"></div>
                         <!-- Full Name -->
                         <div class="flex flex-col gap-2">
                             <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Full Name</label>
@@ -173,7 +151,7 @@
                                     class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">person</span>
                                 <input name="name"
                                     class="w-full pl-12 pr-4 py-3.5 bg-background-light dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400 text-slate-900 dark:text-white"
-                                    placeholder="Johnathan Doe" type="text" />
+                                    placeholder="Johnathan Doe" type="text" required />
                             </div>
                         </div>
                         <!-- Username -->
@@ -184,7 +162,7 @@
                                     class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">badge</span>
                                 <input name="username"
                                     class="w-full pl-12 pr-4 py-3.5 bg-background-light dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400 text-slate-900 dark:text-white"
-                                    placeholder="username123" type="text" />
+                                    placeholder="username123" type="text" minlength="3" required />
                             </div>
                         </div>
                         <!-- Email Address -->
@@ -196,7 +174,7 @@
                                     class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">mail</span>
                                 <input name="email"
                                     class="w-full pl-12 pr-4 py-3.5 bg-background-light dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400 text-slate-900 dark:text-white"
-                                    placeholder="john@example.gov" type="email" />
+                                    placeholder="john@example.gov" type="email" required />
                             </div>
                         </div>
                         <!-- Phone Number -->
@@ -232,7 +210,7 @@
                                     class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">lock</span>
                                 <input name="password"
                                     class="w-full pl-12 pr-12 py-3.5 bg-background-light dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400 text-slate-900 dark:text-white"
-                                    placeholder="••••••••" type="password" />
+                                    placeholder="Enter at least 8 characters" type="password" minlength="8" required />
                                 <button
                                     class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
                                     type="button">
@@ -250,7 +228,7 @@
                         <!-- Terms & Conditions -->
                         <div class="flex items-start gap-3 mt-2">
                             <div class="flex items-center h-5">
-                                <input
+                                <input id="register-terms"
                                     class="w-4 h-4 text-primary bg-background-light border-slate-300 rounded focus:ring-primary focus:ring-offset-0"
                                     type="checkbox" />
                             </div>
@@ -262,7 +240,7 @@
                             </label>
                         </div>
                         <!-- Submit Button -->
-                        <button
+                        <button id="register-submit-btn"
                             class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 mt-4"
                             type="submit">
                             <span>Register Account</span>
@@ -305,6 +283,111 @@
             <a class="hover:text-primary transition-colors" href="#">Contact</a>
         </div>
     </footer>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, deleteUser } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+        const firebaseConfig = {{ firebase_web_config|tojson }};
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        const form = document.getElementById('citizen-register-form');
+        const errorBox = document.getElementById('register-error');
+        const submitBtn = document.getElementById('register-submit-btn');
+        const termsCheckbox = document.getElementById('register-terms');
+
+        const setError = (message) => {
+            errorBox.textContent = message;
+            errorBox.classList.remove('hidden');
+        };
+
+        const clearError = () => {
+            errorBox.textContent = '';
+            errorBox.classList.add('hidden');
+        };
+
+        const normalizeFirebaseError = (error) => {
+            const code = error?.code || '';
+            if (code.includes('email-already-in-use')) return 'This email is already registered.';
+            if (code.includes('invalid-email')) return 'Please enter a valid email address.';
+            if (code.includes('weak-password')) return 'Password is too weak. Use at least 8 characters.';
+            if (code.includes('network-request-failed')) return 'Network error. Please try again.';
+            return error?.message || 'Registration failed. Please try again.';
+        };
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            clearError();
+
+            if (!termsCheckbox.checked) {
+                setError('Please accept the terms to continue.');
+                return;
+            }
+
+            const payload = {
+                name: form.elements['name'].value.trim(),
+                username: form.elements['username'].value.trim(),
+                email: form.elements['email'].value.trim(),
+                phone: form.elements['phone'].value.trim(),
+                address: form.elements['address'].value.trim(),
+                password: form.elements['password'].value
+            };
+
+            if (!payload.name || !payload.username || !payload.email || !payload.password) {
+                setError('Name, username, email and password are required.');
+                return;
+            }
+
+            if (payload.password.length < 8) {
+                setError('Password must be at least 8 characters long.');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-70', 'cursor-not-allowed');
+
+            let firebaseUser = null;
+            let backendSessionCreated = false;
+
+            try {
+                const userCredential = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
+                firebaseUser = userCredential.user;
+                const idToken = await userCredential.user.getIdToken();
+
+                const response = await fetch("{{ url_for('citizen_firebase_register') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idToken,
+                        name: payload.name,
+                        username: payload.username,
+                        phone: payload.phone,
+                        address: payload.address
+                    })
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || 'Unable to complete registration.');
+                }
+
+                backendSessionCreated = true;
+                window.location.href = data.redirect_url || "{{ url_for('citizen_dashboard') }}";
+            } catch (error) {
+                if (firebaseUser && !backendSessionCreated) {
+                    try {
+                        await deleteUser(firebaseUser);
+                    } catch (cleanupError) {
+                        console.warn('Unable to cleanup Firebase user after failed registration:', cleanupError);
+                    }
+                }
+                setError(normalizeFirebaseError(error));
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
+        });
+    </script>
 </body>
 
 </html>
+

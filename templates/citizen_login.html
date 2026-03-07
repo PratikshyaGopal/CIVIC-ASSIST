@@ -38,29 +38,6 @@
         }
     </script>
 </head>
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyDe3fQO4t5Wnp4URpQOv5fsfDoKOuxrO4I",
-    authDomain: "civicassist-39685.firebaseapp.com",
-    projectId: "civicassist-39685",
-    storageBucket: "civicassist-39685.firebasestorage.app",
-    messagingSenderId: "999705978680",
-    appId: "1:999705978680:web:2422d5c56de64d1b1483cd",
-    measurementId: "G-3P3ZTB9DQ2"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
 <body
     class="font-display bg-background-light dark:bg-background-dark text-[#0d141b] dark:text-slate-50 min-h-screen flex flex-col">
     <div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
@@ -113,7 +90,8 @@
                             dashboard and reports</p>
                     </div>
                     <!-- Login Form -->
-                    <form method="post" action="{{ url_for('citizen_login') }}" class="space-y-5">
+                    <form id="citizen-login-form" method="post" action="{{ url_for('citizen_login') }}" class="space-y-5">
+                        <div id="login-error" class="hidden px-4 py-3 rounded-lg text-sm font-medium bg-red-100 text-red-700"></div>
                         <div class="space-y-2">
                             <label class="block text-[#0d141b] dark:text-slate-200 text-sm font-semibold">Username or
                                 Email</label>
@@ -122,7 +100,7 @@
                                     class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#4c739a] text-lg">person</span>
                                 <input name="username"
                                     class="w-full pl-11 pr-4 py-3.5 rounded-lg border border-[#cfdbe7] dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-[#0d141b] dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-[#4c739a]/60"
-                                    placeholder="e.g. username or name@example.com" type="text" />
+                                    placeholder="e.g. username or name@example.com" type="text" required />
                             </div>
                         </div>
                         <div class="space-y-2">
@@ -137,7 +115,7 @@
                                     class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#4c739a] text-lg">lock</span>
                                 <input name="password"
                                     class="w-full pl-11 pr-12 py-3.5 rounded-lg border border-[#cfdbe7] dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-[#0d141b] dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all placeholder:text-[#4c739a]/60"
-                                    placeholder="Enter your password" type="password" />
+                                    placeholder="Enter your password" type="password" required />
                                 <button class="absolute right-4 top-1/2 -translate-y-1/2 text-[#4c739a]" type="button">
                                     <span class="material-symbols-outlined text-lg">visibility</span>
                                 </button>
@@ -149,7 +127,7 @@
                             <label class="text-sm text-[#4c739a] dark:text-slate-400" for="remember">Keep me logged in
                                 on this device</label>
                         </div>
-                        <button
+                        <button id="login-submit-btn"
                             class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                             type="submit">
                             <span>Sign In</span>
@@ -193,6 +171,94 @@
             </div>
         </footer>
     </div>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+        const firebaseConfig = {{ firebase_web_config|tojson }};
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        const form = document.getElementById('citizen-login-form');
+        const errorBox = document.getElementById('login-error');
+        const submitBtn = document.getElementById('login-submit-btn');
+
+        const setError = (message) => {
+            errorBox.textContent = message;
+            errorBox.classList.remove('hidden');
+        };
+
+        const clearError = () => {
+            errorBox.textContent = '';
+            errorBox.classList.add('hidden');
+        };
+
+        const normalizeFirebaseError = (error) => {
+            const code = error?.code || '';
+            if (code.includes('user-not-found') || code.includes('invalid-credential')) return 'Invalid credentials. Please check your details.';
+            if (code.includes('wrong-password')) return 'Incorrect password.';
+            if (code.includes('invalid-email')) return 'Please enter a valid email address.';
+            if (code.includes('too-many-requests')) return 'Too many attempts. Try again later.';
+            if (code.includes('network-request-failed')) return 'Network error. Please try again.';
+            return error?.message || 'Sign in failed. Please try again.';
+        };
+
+        async function resolveEmail(loginInput) {
+            const response = await fetch("{{ url_for('citizen_firebase_resolve_email') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ loginInput })
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || 'Unable to resolve account email.');
+            }
+            return data.email;
+        }
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            clearError();
+
+            const loginInput = form.elements['username'].value.trim();
+            const password = form.elements['password'].value;
+
+            if (!loginInput || !password) {
+                setError('Username/email and password are required.');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-70', 'cursor-not-allowed');
+
+            try {
+                const email = loginInput.includes('@')
+                    ? loginInput.toLowerCase()
+                    : await resolveEmail(loginInput);
+
+                const userCredential = await signInWithEmailAndPassword(auth, email, password);
+                const idToken = await userCredential.user.getIdToken();
+
+                const response = await fetch("{{ url_for('citizen_firebase_login') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idToken })
+                });
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data.error || 'Unable to establish server session.');
+                }
+
+                window.location.href = data.redirect_url || "{{ url_for('citizen_dashboard') }}";
+            } catch (error) {
+                setError(normalizeFirebaseError(error));
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
+        });
+    </script>
 </body>
 
 </html>
