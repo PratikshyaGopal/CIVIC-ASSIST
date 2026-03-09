@@ -77,32 +77,46 @@
             transition: all 0.25s;
             font-family: 'Public Sans', sans-serif;
         }
+
         #voice-btn:hover {
             background: rgba(19, 127, 236, 0.08);
         }
+
         #voice-btn.listening {
             background: #ef4444;
             border-color: #ef4444;
             color: #fff;
             animation: pulse-ring 1.2s ease-in-out infinite;
         }
+
         #voice-btn .mic-icon {
             font-size: 1.1rem;
         }
+
         #voice-status {
             font-size: 0.75rem;
             color: #64748b;
             margin-left: 4px;
             transition: color 0.2s;
         }
+
         #voice-status.active {
             color: #ef4444;
             font-weight: 600;
         }
+
         @keyframes pulse-ring {
-            0%   { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-            70%  { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
         }
     </style>
 </head>
@@ -278,10 +292,12 @@
                                     <!-- Description Textarea -->
                                     <div>
                                         <div class="flex items-center justify-between mb-2">
-                                            <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">Problem
+                                            <label
+                                                class="block text-sm font-semibold text-slate-700 dark:text-slate-300">Problem
                                                 Description</label>
                                             <!-- Voice-to-Text Button -->
-                                            <button type="button" id="voice-btn" onclick="toggleVoiceInput()" title="Click to speak your complaint">
+                                            <button type="button" id="voice-btn" onclick="toggleVoiceInput()"
+                                                title="Click to speak your complaint">
                                                 <span class="material-symbols-outlined mic-icon">mic</span>
                                                 <span id="voice-btn-label">Speak</span>
                                             </button>
@@ -289,7 +305,8 @@
                                         <textarea id="complaint-description" name="description"
                                             class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary focus:border-primary outline-none text-slate-900 dark:text-white min-h-[160px] transition-all"
                                             placeholder="Describe the issue in detail, or click 'Speak' to use your voice..."></textarea>
-                                        <p id="voice-status" class="mt-1">🎙 Click <strong>Speak</strong> to dictate your problem description</p>
+                                        <p id="voice-status" class="mt-1">🎙 Click <strong>Speak</strong> to dictate
+                                            your problem description</p>
                                     </div>
                                 </div>
                                 <div class="space-y-6">
@@ -318,15 +335,18 @@
                                                 <span
                                                     class="material-symbols-outlined text-3xl text-slate-400 group-hover:text-primary transition-colors">add_a_photo</span>
                                                 <span class="text-sm font-medium" id="upload-text">Upload Image</span>
-                                                <span class="text-[10px] text-slate-400 dark:text-slate-500" id="upload-hint">JPG, PNG up
+                                                <span class="text-[10px] text-slate-400 dark:text-slate-500"
+                                                    id="upload-hint">JPG, PNG up
                                                     to 5MB</span>
                                                 <input id="complaint_image" name="complaint_image" type="file"
-                                                    accept="image/jpeg,image/jpg,image/png,image/gif" class="hidden" onchange="handleImagePreview(this)" />
+                                                    accept="image/jpeg,image/jpg,image/png,image/gif" class="hidden"
+                                                    onchange="handleImagePreview(this)" />
                                             </label>
                                         </div>
                                     </div>
                                     <!-- Live Map Preview using Leaflet.js -->
-                                    <div id="map-preview-wrapper" class="relative w-full rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+                                    <div id="map-preview-wrapper"
+                                        class="relative w-full rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
                                         <!-- Placeholder shown before location is detected -->
                                         <div id="map-placeholder"
                                             class="w-full h-32 bg-slate-100 dark:bg-slate-800 flex items-center justify-center gap-2 text-slate-400 text-xs font-medium">
@@ -495,9 +515,9 @@
                                     <div>
                                         <label
                                             class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">Email
-                                            <span class="text-slate-400 font-normal">(managed by Firebase)</span></label>
-                                        <input type="email" name="email" value="{{ citizen.email }}"
-                                            readonly
+                                            <span class="text-slate-400 font-normal">(managed by
+                                                Firebase)</span></label>
+                                        <input type="email" name="email" value="{{ citizen.email }}" readonly
                                             class="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-3 text-slate-500 dark:text-slate-400 cursor-not-allowed transition-all" />
                                     </div>
                                 </div>
@@ -669,10 +689,10 @@
             recognition.continuous = true;      // Keep listening until stopped
             recognition.interimResults = true;  // Show live transcription
 
-            const textarea    = document.getElementById('complaint-description');
-            const btn         = document.getElementById('voice-btn');
-            const btnLabel    = document.getElementById('voice-btn-label');
-            const statusEl    = document.getElementById('voice-status');
+            const textarea = document.getElementById('complaint-description');
+            const btn = document.getElementById('voice-btn');
+            const btnLabel = document.getElementById('voice-btn-label');
+            const statusEl = document.getElementById('voice-status');
 
             let interimSpan = '';   // holds interim (in-progress) words
             const savedText = textarea.value; // preserve any text already typed
@@ -688,7 +708,7 @@
 
             recognition.onresult = (event) => {
                 let interim = '';
-                let final   = '';
+                let final = '';
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const transcript = event.results[i][0].transcript;
                     if (event.results[i].isFinal) {
@@ -708,7 +728,7 @@
                 console.error('Speech recognition error:', e.error);
                 let msg = '⚠️ Error: ' + e.error;
                 if (e.error === 'not-allowed') msg = '⚠️ Microphone access denied. Please allow microphone permissions.';
-                if (e.error === 'no-speech')   msg = '⚠️ No speech detected. Try again.';
+                if (e.error === 'no-speech') msg = '⚠️ No speech detected. Try again.';
                 statusEl.textContent = msg;
                 stopVoice(btn, btnLabel, statusEl, textarea);
             };
@@ -746,22 +766,22 @@
         // ========== Image Upload Preview ==========
         function handleImagePreview(input) {
             // Use closest('label') so no extra id needed on the label element
-            const label    = input.closest('label');
-            const icon     = label ? label.querySelector('.material-symbols-outlined') : null;
-            const text     = document.getElementById('upload-text');
-            const hint     = document.getElementById('upload-hint');
+            const label = input.closest('label');
+            const icon = label ? label.querySelector('.material-symbols-outlined') : null;
+            const text = document.getElementById('upload-text');
+            const hint = document.getElementById('upload-hint');
 
             if (input.files && input.files[0]) {
                 const file = input.files[0];
                 const name = file.name.length > 20 ? file.name.substring(0, 18) + '…' : file.name;
-                if (icon)  { icon.textContent = 'check_circle'; icon.style.color = '#22c55e'; }
-                if (text)  { text.textContent = name; }
-                if (hint)  { hint.textContent = (file.size / 1024).toFixed(0) + ' KB — ready to upload'; hint.style.color = '#22c55e'; }
+                if (icon) { icon.textContent = 'check_circle'; icon.style.color = '#22c55e'; }
+                if (text) { text.textContent = name; }
+                if (hint) { hint.textContent = (file.size / 1024).toFixed(0) + ' KB — ready to upload'; hint.style.color = '#22c55e'; }
                 if (label) { label.style.borderColor = '#4ade80'; label.style.backgroundColor = 'rgba(34,197,94,0.05)'; }
             } else {
-                if (icon)  { icon.textContent = 'add_a_photo'; icon.style.color = ''; }
-                if (text)  { text.textContent = 'Upload Image'; }
-                if (hint)  { hint.textContent = 'JPG, PNG up to 5MB'; hint.style.color = ''; }
+                if (icon) { icon.textContent = 'add_a_photo'; icon.style.color = ''; }
+                if (text) { text.textContent = 'Upload Image'; }
+                if (hint) { hint.textContent = 'JPG, PNG up to 5MB'; hint.style.color = ''; }
                 if (label) { label.style.borderColor = ''; label.style.backgroundColor = ''; }
             }
         }
@@ -770,7 +790,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
         import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 
-        const firebaseConfig = {{ firebase_web_config|tojson }};
+        const firebaseConfig = {{ firebase_web_config| tojson }};
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const logoutLink = document.getElementById('citizen-logout-link');

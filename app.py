@@ -4,10 +4,22 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_, func  # Needed for OR queries and aggregation
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timedelta
+from urllib.parse import urlparse
 import os
 import json
 import re
+import logging
+
+try:
+    import jwt as pyjwt
+    import requests as http_requests
+    _pyjwt_available = True
+except ImportError:
+    _pyjwt_available = False
+
+# JWKS cache: { 'keys': {...}, 'fetched_at': datetime }
+_jwks_cache = {}
 
 try:
     import firebase_admin
@@ -20,7 +32,16 @@ except ImportError:
 app = Flask(__name__)
 
 # ==================== CONFIGURATION ====================
-app.secret_key = 'dev_secret_key_change_in_production'
+# Secret key: load from environment in production. Keep a long random fallback only for local dev.
+app.secret_key = os.getenv(
+    'FLASK_SECRET_KEY',
+    'civic-assist-local-dev-only-change-me-in-production-32chars'
+)
+
+# Session / cookie security
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
 # SQLite Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///civic_assist.db'
@@ -128,14 +149,83 @@ def ensure_firebase_admin_initialized():
                 return _firebase_init_error
             cred = firebase_credentials.Certificate(service_account_path)
         else:
-            cred = firebase_credentials.ApplicationDefault()
+            # ApplicationDefault requires GCP environment – skip it in local dev;
+            # we will fall through to the JWKS fallback instead.
+            _firebase_init_error = 'No service account configured; using JWKS fallback.'
+            return _firebase_init_error
 
         firebase_admin.initialize_app(cred)
         _firebase_init_error = None
         return None
     except Exception as exc:
         _firebase_init_error = str(exc)
+        app.logger.warning('Firebase Admin SDK init failed: %s', exc)
         return _firebase_init_error
+
+
+# ---------------------------------------------------------------------------
+# JWKS-based Firebase token verification (works without a service account)
+# ---------------------------------------------------------------------------
+_FIREBASE_JWKS_URL = (
+    'https://www.googleapis.com/service_accounts/v1/jwk/'
+    'securetoken@system.gserviceaccount.com'
+)
+_FIREBASE_PROJECT_ID = app.config.get('FIREBASE_WEB_CONFIG', {}).get('projectId', '')
+
+
+def _get_firebase_jwks():
+    """Return cached JWKS public keys, refreshing at most once every 60 min."""
+    global _jwks_cache
+    now = datetime.utcnow()
+    cached_at = _jwks_cache.get('fetched_at')
+    if cached_at and (now - cached_at).total_seconds() < 3600:
+        return _jwks_cache.get('keys', {})
+    try:
+        resp = http_requests.get(_FIREBASE_JWKS_URL, timeout=5)
+        resp.raise_for_status()
+        jwks = resp.json()
+        # Build kid → key object map
+        keys = {k['kid']: pyjwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(k))
+                for k in jwks.get('keys', [])}
+        _jwks_cache = {'keys': keys, 'fetched_at': now}
+        return keys
+    except Exception as exc:
+        app.logger.warning('Failed to fetch Firebase JWKS: %s', exc)
+        return _jwks_cache.get('keys', {})
+
+
+def _verify_firebase_id_token_jwks(id_token):
+    """Verify a Firebase ID token using Google's public JWKS (no service account needed)."""
+    if not _pyjwt_available:
+        raise RuntimeError('PyJWT is not installed. Run: pip install PyJWT cryptography')
+
+    # Decode header to get kid without verification
+    try:
+        header = pyjwt.get_unverified_header(id_token)
+    except pyjwt.exceptions.DecodeError as exc:
+        raise ValueError(f'Malformed ID token: {exc}') from exc
+
+    kid = header.get('kid')
+    keys = _get_firebase_jwks()
+    public_key = keys.get(kid)
+    if not public_key:
+        # Try refreshing the cache once
+        _jwks_cache.clear()
+        keys = _get_firebase_jwks()
+        public_key = keys.get(kid)
+    if not public_key:
+        raise ValueError('Firebase public key not found for kid: ' + str(kid))
+
+    project_id = _FIREBASE_PROJECT_ID or os.getenv('FIREBASE_PROJECT_ID', '')
+    payload = pyjwt.decode(
+        id_token,
+        public_key,
+        algorithms=['RS256'],
+        audience=project_id,
+        options={'verify_exp': True},
+    )
+    return payload
+
 
 def verify_firebase_token_from_request():
     data = request.get_json(silent=True) or {}
@@ -143,13 +233,30 @@ def verify_firebase_token_from_request():
     if not id_token:
         return None, 'Missing Firebase ID token.'
 
+    # --- Try firebase-admin SDK first (requires service account) ---
     init_error = ensure_firebase_admin_initialized()
-    if init_error:
-        return None, 'Firebase Admin SDK is not configured on the server.'
+    if not init_error and firebase_auth is not None:
+        try:
+            decoded_token = firebase_auth.verify_id_token(id_token)
+            email = (decoded_token.get('email') or '').strip().lower()
+            if not email:
+                return None, 'Firebase account email is missing.'
+            decoded_token['email'] = email
+            return decoded_token, None
+        except Exception as exc:
+            app.logger.warning('firebase-admin verify_id_token failed: %s', exc)
+            # Fall through to JWKS fallback below
 
+    # --- JWKS fallback: verify the JWT directly via Google public keys ---
+    if not _pyjwt_available:
+        return None, (
+            'Firebase authentication is unavailable. '
+            'Install PyJWT & cryptography, or configure a service account.'
+        )
     try:
-        decoded_token = firebase_auth.verify_id_token(id_token)
-    except Exception:
+        decoded_token = _verify_firebase_id_token_jwks(id_token)
+    except Exception as exc:
+        app.logger.warning('Firebase JWKS token verification failed: %s', exc)
         return None, 'Invalid or expired Firebase session. Please sign in again.'
 
     email = (decoded_token.get('email') or '').strip().lower()
@@ -182,6 +289,15 @@ def make_unique_username(seed_value):
         trimmed_base = base[:max(1, 30 - len(suffix_text))]
         candidate = f"{trimmed_base}{suffix_text}"
     return candidate
+
+# ==================== SECURITY HEADERS ====================
+
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
 
 # ==================== ROUTES ====================
 
@@ -355,7 +471,18 @@ def citizen_dashboard():
 def register_complaint():
     if 'user_id' not in session:
         return redirect(url_for('citizen_login'))
-        
+
+    # --- Server-side input validation ---
+    complaint_type = (request.form.get('complaint_type') or '').strip()
+    description = (request.form.get('description') or '').strip()
+
+    if not complaint_type:
+        flash('Please select a complaint type.', 'danger')
+        return redirect(url_for('citizen_dashboard'))
+    if not description or len(description) < 10:
+        flash('Description must be at least 10 characters.', 'danger')
+        return redirect(url_for('citizen_dashboard'))
+
     image_path = None
     if 'complaint_image' in request.files:
         file = request.files['complaint_image']
@@ -370,17 +497,17 @@ def register_complaint():
 
     new_complaint = Complaint(
         user_id=session['user_id'],
-        complaint_type=request.form.get('complaint_type'),
-        description=request.form.get('description'),
+        complaint_type=complaint_type,
+        description=description,
         latitude=request.form.get('latitude') or 'N/A',
         longitude=request.form.get('longitude') or 'N/A',
         department='Unassigned',
         image_path=image_path
     )
-    
+
     db.session.add(new_complaint)
     db.session.commit()
-    
+
     flash('Complaint registered successfully!', 'success')
     return redirect(url_for('citizen_dashboard'))
 
@@ -503,21 +630,24 @@ def admin_dashboard():
 def update_complaint(complaint_id):
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
-        
+
     complaint = Complaint.query.get_or_404(complaint_id)
     complaint.status = request.form.get('status')
     complaint.department = request.form.get('department')
     complaint.remarks = request.form.get('remarks')
-    
+
     worker_id = request.form.get('worker_id')
     if worker_id:
         complaint.worker_id = int(worker_id)
-    
+
     db.session.commit()
     flash('Complaint updated successfully.', 'success')
-    
-    # Redirect back to the page the admin came from
-    next_page = request.form.get('next', url_for('admin_dashboard'))
+
+    # Open-redirect fix: only follow the `next` param if it is a safe local path.
+    next_page = request.form.get('next', '')
+    parsed = urlparse(next_page)
+    if parsed.netloc or parsed.scheme or not next_page.startswith('/'):
+        next_page = url_for('admin_dashboard')
     return redirect(next_page)
 
 # --- ALL COMPLAINTS PAGE ---
@@ -579,12 +709,17 @@ def admin_users():
 def delete_user(user_id):
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
-    
+
+    # Prevent admin from deleting their own account via this route
+    if user_id == session.get('user_id'):
+        flash('You cannot delete your own account.', 'danger')
+        return redirect(url_for('admin_users'))
+
     user = User.query.get_or_404(user_id)
     if user.is_admin:
         flash('Cannot delete admin accounts from here.', 'warning')
         return redirect(url_for('admin_users'))
-    
+
     # Delete user's complaints first
     Complaint.query.filter_by(user_id=user.id).delete()
     db.session.delete(user)

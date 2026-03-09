@@ -2,3 +2,6 @@ Flask
 Flask-SQLAlchemy
 Werkzeug
 firebase-admin
+PyJWT>=2.8.0
+requests>=2.31.0
+cryptography>=42.0.0
