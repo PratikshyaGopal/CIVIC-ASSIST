@@ -153,10 +153,9 @@
                                         <div class="flex items-center gap-3">
                                             <div
                                                 class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-xs text-primary">
-                                                {{ c.author.name[:2]|upper if c.author else 'NA' }}</div>
+                                                {{ c.author_name[:2]|upper if c.author_name else 'NA' }}</div>
                                             <div>
-                                                <p class="text-sm font-semibold">{{ c.author.name if c.author else
-                                                    'Unknown' }}</p>
+                                                <p class="text-sm font-semibold">{{ c.author_name or 'Unknown' }}</p>
                                                 <p class="text-xs text-slate-500">{{ c.complaint_type|capitalize }}</p>
                                             </div>
                                         </div>
@@ -165,16 +164,16 @@
                                             class="text-sm bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{{
                                             c.department or 'Unassigned' }}</span></td>
                                     <td class="px-6 py-4 text-sm">
-                                        {% if c.assigned_worker %}
+                                        {% if c.worker_name %}
                                         <span
                                             class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-1 rounded text-xs font-medium">{{
-                                            c.assigned_worker.name }}</span>
+                                            c.worker_name }}</span>
                                         {% else %}
                                         <span class="text-slate-400 text-xs">Unassigned</span>
                                         {% endif %}
                                     </td>
-                                    <td class="px-6 py-4 text-sm text-slate-500">{{ c.created_at.strftime('%b %d, %Y')
-                                        }}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-500">{{ c.created_at | format_date('%b %d,
+                                        %Y') }}</td>
                                     <td class="px-6 py-4">
                                         <span
                                             class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold {% if c.status == 'Resolved' %}bg-green-100 text-green-700{% elif c.status == 'In Progress' %}bg-primary/10 text-primary{% elif c.status == 'Rejected' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">{{

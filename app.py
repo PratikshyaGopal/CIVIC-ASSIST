@@ -1,7 +1,5 @@
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import or_, func  # Needed for OR queries and aggregation
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
@@ -10,6 +8,7 @@ import os
 import json
 import re
 import logging
+import uuid
 
 try:
     import jwt as pyjwt
@@ -23,29 +22,24 @@ _jwks_cache = {}
 
 try:
     import firebase_admin
-    from firebase_admin import auth as firebase_auth, credentials as firebase_credentials
+    from firebase_admin import auth as firebase_auth, credentials as firebase_credentials, db as firebase_db
 except ImportError:
     firebase_admin = None
     firebase_auth = None
     firebase_credentials = None
+    firebase_db = None
 
 app = Flask(__name__)
 
 # ==================== CONFIGURATION ====================
-# Secret key: load from environment in production. Keep a long random fallback only for local dev.
 app.secret_key = os.getenv(
     'FLASK_SECRET_KEY',
     'civic-assist-local-dev-only-change-me-in-production-32chars'
 )
 
-# Session / cookie security
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
-
-# SQLite Database Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///civic_assist.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Firebase Web SDK Configuration (used by templates)
 DEFAULT_FIREBASE_WEB_CONFIG = {
@@ -56,7 +50,9 @@ DEFAULT_FIREBASE_WEB_CONFIG = {
     "messagingSenderId": "999705978680",
     "appId": "1:999705978680:web:2422d5c56de64d1b1483cd",
     "measurementId": "G-3P3ZTB9DQ2",
+    "databaseURL": "https://civicassist-39685-default-rtdb.asia-southeast1.firebasedatabase.app/",
 }
+
 firebase_web_config_json = os.getenv('FIREBASE_WEB_CONFIG_JSON')
 if firebase_web_config_json:
     try:
@@ -76,62 +72,23 @@ if not os.path.exists(UPLOAD_FOLDER):
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB limit
 
-# Initialize DB
-db = SQLAlchemy(app)
+# Firebase Realtime Database URL
+FIREBASE_DB_URL = "https://civicassist-39685-default-rtdb.asia-southeast1.firebasedatabase.app/"
+
+# ==================== FIREBASE ADMIN INIT ====================
 _firebase_init_error = None
+_rtdb_initialized = False
 
-# ==================== DATABASE MODELS ====================
-
-class User(db.Model):
-    __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    email = db.Column(db.String(120), nullable=False) # Should be unique ideally
-    phone = db.Column(db.String(20))
-    address = db.Column(db.Text)
-    is_admin = db.Column(db.Boolean, default=False)
-    complaints = db.relationship('Complaint', backref='author', lazy=True)
-
-class Worker(db.Model):
-    __tablename__ = 'workers'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    phone = db.Column(db.String(20))
-    department = db.Column(db.String(50), nullable=False)
-    area = db.Column(db.String(100))
-    is_available = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    assignments = db.relationship('Complaint', backref='assigned_worker', lazy=True)
-
-class Complaint(db.Model):
-    __tablename__ = 'complaints'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    worker_id = db.Column(db.Integer, db.ForeignKey('workers.id'), nullable=True)
-    complaint_type = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.Text, nullable=False)
-    department = db.Column(db.String(50))
-    status = db.Column(db.String(20), default='Pending')
-    latitude = db.Column(db.String(20), default='N/A')
-    longitude = db.Column(db.String(20), default='N/A')
-    image_path = db.Column(db.String(255))
-    remarks = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-# ==================== HELPER FUNCTIONS ====================
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def ensure_firebase_admin_initialized():
-    global _firebase_init_error
+    """Initialize Firebase Admin SDK (for RTDB and optionally Auth). Returns error string or None."""
+    global _firebase_init_error, _rtdb_initialized
 
     if firebase_admin is None:
         return 'firebase-admin package is not installed.'
 
     if firebase_admin._apps:
+        _rtdb_initialized = True
         return None
 
     if _firebase_init_error:
@@ -143,24 +100,295 @@ def ensure_firebase_admin_initialized():
     try:
         if service_account_json:
             cred = firebase_credentials.Certificate(json.loads(service_account_json))
+            firebase_admin.initialize_app(cred, {'databaseURL': FIREBASE_DB_URL})
         elif service_account_path:
             if not os.path.exists(service_account_path):
                 _firebase_init_error = f'Service account file not found: {service_account_path}'
                 return _firebase_init_error
             cred = firebase_credentials.Certificate(service_account_path)
+            firebase_admin.initialize_app(cred, {'databaseURL': FIREBASE_DB_URL})
         else:
-            # ApplicationDefault requires GCP environment – skip it in local dev;
-            # we will fall through to the JWKS fallback instead.
-            _firebase_init_error = 'No service account configured; using JWKS fallback.'
+            # No service account — will use RTDB REST API directly (no Admin SDK for RTDB)
+            _firebase_init_error = 'No service account configured; using JWKS + REST fallback.'
             return _firebase_init_error
 
-        firebase_admin.initialize_app(cred)
         _firebase_init_error = None
+        _rtdb_initialized = True
         return None
     except Exception as exc:
         _firebase_init_error = str(exc)
         app.logger.warning('Firebase Admin SDK init failed: %s', exc)
         return _firebase_init_error
+
+
+# ==================== FIREBASE RTDB REST HELPERS ====================
+# We use the Firebase REST API so the app works even without a service account.
+# All data is stored without auth rules check (public read+write) or you should
+# configure RTDB rules on the Firebase console to secure it.
+
+def _rtdb_url(path):
+    """Build the full REST URL for a given RTDB path."""
+    base = FIREBASE_DB_URL.rstrip('/')
+    return f"{base}/{path.lstrip('/')}.json"
+
+
+def _rtdb_get(path):
+    """GET a node from RTDB. Returns parsed JSON or None."""
+    try:
+        # Try Admin SDK first
+        if firebase_admin and firebase_admin._apps and firebase_db:
+            ref = firebase_db.reference(path)
+            return ref.get()
+        # Fallback: REST API
+        resp = http_requests.get(_rtdb_url(path), timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:
+        app.logger.error('RTDB GET %s failed: %s', path, exc)
+        return None
+
+
+def _rtdb_set(path, data):
+    """PUT (overwrite) a node in RTDB. Returns True on success."""
+    try:
+        if firebase_admin and firebase_admin._apps and firebase_db:
+            ref = firebase_db.reference(path)
+            ref.set(data)
+            return True
+        resp = http_requests.put(_rtdb_url(path), json=data, timeout=10)
+        resp.raise_for_status()
+        return True
+    except Exception as exc:
+        app.logger.error('RTDB SET %s failed: %s', path, exc)
+        return False
+
+
+def _rtdb_update(path, data):
+    """PATCH (partial update) a node in RTDB. Returns True on success."""
+    try:
+        if firebase_admin and firebase_admin._apps and firebase_db:
+            ref = firebase_db.reference(path)
+            ref.update(data)
+            return True
+        resp = http_requests.patch(_rtdb_url(path), json=data, timeout=10)
+        resp.raise_for_status()
+        return True
+    except Exception as exc:
+        app.logger.error('RTDB UPDATE %s failed: %s', path, exc)
+        return False
+
+
+def _rtdb_push(path, data):
+    """POST (push with auto-ID) a node to RTDB. Returns the new key, or None."""
+    try:
+        if firebase_admin and firebase_admin._apps and firebase_db:
+            ref = firebase_db.reference(path)
+            new_ref = ref.push(data)
+            return new_ref.key
+        resp = http_requests.post(_rtdb_url(path), json=data, timeout=10)
+        resp.raise_for_status()
+        return resp.json().get('name')
+    except Exception as exc:
+        app.logger.error('RTDB PUSH %s failed: %s', path, exc)
+        return None
+
+
+def _rtdb_delete(path):
+    """DELETE a node from RTDB. Returns True on success."""
+    try:
+        if firebase_admin and firebase_admin._apps and firebase_db:
+            ref = firebase_db.reference(path)
+            ref.delete()
+            return True
+        resp = http_requests.delete(_rtdb_url(path), timeout=10)
+        resp.raise_for_status()
+        return True
+    except Exception as exc:
+        app.logger.error('RTDB DELETE %s failed: %s', path, exc)
+        return False
+
+
+# ==================== DATA ACCESS LAYER ====================
+
+# ---- USERS ----
+
+def _all_users():
+    """Return dict of {user_id: user_dict} or {} on error."""
+    data = _rtdb_get('users')
+    return data if isinstance(data, dict) else {}
+
+
+def get_user_by_id(user_id):
+    if not user_id:
+        return None
+    u = _rtdb_get(f'users/{user_id}')
+    if isinstance(u, dict):
+        u['id'] = user_id
+        return u
+    return None
+
+
+def get_user_by_email(email):
+    """Return first user whose email matches (case-insensitive)."""
+    email = (email or '').strip().lower()
+    for uid, u in _all_users().items():
+        if (u.get('email') or '').strip().lower() == email:
+            u['id'] = uid
+            return u
+    return None
+
+
+def get_user_by_username(username):
+    username = (username or '').strip().lower()
+    for uid, u in _all_users().items():
+        if (u.get('username') or '').strip().lower() == username:
+            u['id'] = uid
+            return u
+    return None
+
+
+def save_user(user_id, data):
+    """Overwrite user node. Returns True on success."""
+    return _rtdb_set(f'users/{user_id}', data)
+
+
+def update_user(user_id, partial):
+    return _rtdb_update(f'users/{user_id}', partial)
+
+
+def delete_user_data(user_id):
+    return _rtdb_delete(f'users/{user_id}')
+
+
+def create_user(user_dict):
+    """Generate a unique user ID and push user data. Returns user_id."""
+    user_id = str(uuid.uuid4()).replace('-', '')[:20]
+    _rtdb_set(f'users/{user_id}', user_dict)
+    return user_id
+
+
+def make_unique_username(seed_value):
+    base = _sanitize_username(seed_value)
+    candidate = base
+    suffix = 1
+    all_usernames = {(u.get('username') or '').lower() for u in _all_users().values()}
+    while candidate.lower() in all_usernames:
+        suffix += 1
+        suffix_text = f"_{suffix}"
+        trimmed_base = base[:max(1, 30 - len(suffix_text))]
+        candidate = f"{trimmed_base}{suffix_text}"
+    return candidate
+
+
+def _sanitize_username(raw_value):
+    raw_value = (raw_value or '').strip().lower()
+    cleaned = re.sub(r'[^a-z0-9_]+', '_', raw_value)
+    cleaned = re.sub(r'_+', '_', cleaned).strip('_')
+    return cleaned[:30] or 'citizen'
+
+
+# ---- WORKERS ----
+
+def _all_workers():
+    data = _rtdb_get('workers')
+    return data if isinstance(data, dict) else {}
+
+
+def get_all_workers(available_only=False):
+    workers = []
+    for wid, w in _all_workers().items():
+        if not isinstance(w, dict):
+            continue
+        w['id'] = wid
+        if available_only and not w.get('is_available', True):
+            continue
+        workers.append(w)
+    # Sort by name
+    workers.sort(key=lambda x: x.get('name', ''))
+    return workers
+
+
+def get_worker_by_id(worker_id):
+    w = _rtdb_get(f'workers/{worker_id}')
+    if isinstance(w, dict):
+        w['id'] = worker_id
+        return w
+    return None
+
+
+def add_worker(worker_dict):
+    """Push new worker, return new key."""
+    return _rtdb_push('workers', worker_dict)
+
+
+def update_worker(worker_id, partial):
+    return _rtdb_update(f'workers/{worker_id}', partial)
+
+
+def delete_worker(worker_id):
+    return _rtdb_delete(f'workers/{worker_id}')
+
+
+# ---- COMPLAINTS ----
+
+def _all_complaints():
+    data = _rtdb_get('complaints')
+    return data if isinstance(data, dict) else {}
+
+
+def get_all_complaints():
+    complaints = []
+    for cid, c in _all_complaints().items():
+        if not isinstance(c, dict):
+            continue
+        c['id'] = cid
+        complaints.append(c)
+    complaints.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+    return complaints
+
+
+def get_complaints_by_user(user_id):
+    complaints = []
+    for cid, c in _all_complaints().items():
+        if not isinstance(c, dict):
+            continue
+        if str(c.get('user_id', '')) == str(user_id):
+            c['id'] = cid
+            complaints.append(c)
+    complaints.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+    return complaints
+
+
+def get_complaint_by_id(complaint_id):
+    c = _rtdb_get(f'complaints/{complaint_id}')
+    if isinstance(c, dict):
+        c['id'] = complaint_id
+        return c
+    return None
+
+
+def add_complaint(complaint_dict):
+    return _rtdb_push('complaints', complaint_dict)
+
+
+def update_complaint_data(complaint_id, partial):
+    return _rtdb_update(f'complaints/{complaint_id}', partial)
+
+
+def delete_complaint(complaint_id):
+    return _rtdb_delete(f'complaints/{complaint_id}')
+
+
+def delete_complaints_by_user(user_id):
+    for cid, c in _all_complaints().items():
+        if isinstance(c, dict) and str(c.get('user_id', '')) == str(user_id):
+            _rtdb_delete(f'complaints/{cid}')
+
+
+# ==================== HELPER FUNCTIONS ====================
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +412,6 @@ def _get_firebase_jwks():
         resp = http_requests.get(_FIREBASE_JWKS_URL, timeout=5)
         resp.raise_for_status()
         jwks = resp.json()
-        # Build kid → key object map
         keys = {k['kid']: pyjwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(k))
                 for k in jwks.get('keys', [])}
         _jwks_cache = {'keys': keys, 'fetched_at': now}
@@ -199,7 +426,6 @@ def _verify_firebase_id_token_jwks(id_token):
     if not _pyjwt_available:
         raise RuntimeError('PyJWT is not installed. Run: pip install PyJWT cryptography')
 
-    # Decode header to get kid without verification
     try:
         header = pyjwt.get_unverified_header(id_token)
     except pyjwt.exceptions.DecodeError as exc:
@@ -209,7 +435,6 @@ def _verify_firebase_id_token_jwks(id_token):
     keys = _get_firebase_jwks()
     public_key = keys.get(kid)
     if not public_key:
-        # Try refreshing the cache once
         _jwks_cache.clear()
         keys = _get_firebase_jwks()
         public_key = keys.get(kid)
@@ -245,9 +470,8 @@ def verify_firebase_token_from_request():
             return decoded_token, None
         except Exception as exc:
             app.logger.warning('firebase-admin verify_id_token failed: %s', exc)
-            # Fall through to JWKS fallback below
 
-    # --- JWKS fallback: verify the JWT directly via Google public keys ---
+    # --- JWKS fallback ---
     if not _pyjwt_available:
         return None, (
             'Firebase authentication is unavailable. '
@@ -266,29 +490,30 @@ def verify_firebase_token_from_request():
     decoded_token['email'] = email
     return decoded_token, None
 
-def set_citizen_session(user):
-    session['user_id'] = user.id
-    session['username'] = user.username
-    session['is_admin'] = user.is_admin
+
+def set_citizen_session(user_id, user):
+    session['user_id'] = user_id
+    session['username'] = user.get('username', '')
+    session['is_admin'] = user.get('is_admin', False)
     session['citizen_logged_in'] = True
     session.pop('admin_logged_in', None)
 
-def sanitize_username(raw_value):
-    raw_value = (raw_value or '').strip().lower()
-    cleaned = re.sub(r'[^a-z0-9_]+', '_', raw_value)
-    cleaned = re.sub(r'_+', '_', cleaned).strip('_')
-    return cleaned[:30] or 'citizen'
 
-def make_unique_username(seed_value):
-    base = sanitize_username(seed_value)
-    candidate = base
-    suffix = 1
-    while User.query.filter(func.lower(User.username) == candidate.lower()).first():
-        suffix += 1
-        suffix_text = f"_{suffix}"
-        trimmed_base = base[:max(1, 30 - len(suffix_text))]
-        candidate = f"{trimmed_base}{suffix_text}"
-    return candidate
+# ==================== JINJA2 CUSTOM FILTERS ====================
+
+@app.template_filter('format_date')
+def format_date_filter(value, fmt='%b %d, %Y'):
+    """Convert an ISO 8601 datetime string (from Firebase RTDB) to a formatted string."""
+    if not value:
+        return ''
+    # Try parsing with and without microseconds
+    for pattern in ('%Y-%m-%dT%H:%M:%S.%f', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d'):
+        try:
+            dt = datetime.strptime(str(value)[:26], pattern)
+            return dt.strftime(fmt)
+        except ValueError:
+            continue
+    return str(value)  # fallback: return raw value
 
 # ==================== SECURITY HEADERS ====================
 
@@ -299,15 +524,18 @@ def set_security_headers(response):
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     return response
 
+
 # ==================== ROUTES ====================
 
 @app.context_processor
 def inject_firebase_config():
     return {'firebase_web_config': app.config.get('FIREBASE_WEB_CONFIG', {})}
 
+
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 # --- CITIZEN AUTH ---
 
@@ -316,16 +544,16 @@ def citizen_register():
     if request.method == 'POST':
         flash('Registration is now handled by Firebase Authentication. Please use the web form.', 'warning')
         return redirect(url_for('citizen_register'))
-    
     return render_template('citizen_register.html')
+
 
 @app.route('/citizen/login', methods=['GET', 'POST'])
 def citizen_login():
     if request.method == 'POST':
         flash('Login is now handled by Firebase Authentication. Please use the web form.', 'warning')
         return redirect(url_for('citizen_login'))
-            
     return render_template('citizen_login.html')
+
 
 @app.route('/citizen/firebase/resolve-email', methods=['POST'])
 def citizen_firebase_resolve_email():
@@ -337,15 +565,12 @@ def citizen_firebase_resolve_email():
     if '@' in login_input:
         return jsonify({'email': login_input.lower()}), 200
 
-    user = User.query.filter(
-        func.lower(User.username) == login_input.lower(),
-        User.is_admin == False
-    ).first()
-
-    if not user:
+    user = get_user_by_username(login_input)
+    if not user or user.get('is_admin'):
         return jsonify({'error': 'No citizen account found for that username.'}), 404
 
-    return jsonify({'email': user.email}), 200
+    return jsonify({'email': user['email']}), 200
+
 
 @app.route('/citizen/firebase/register', methods=['POST'])
 def citizen_firebase_register():
@@ -368,42 +593,49 @@ def citizen_firebase_register():
     if not name:
         return jsonify({'error': 'Full name is required.'}), 400
 
-    existing_by_email = User.query.filter(func.lower(User.email) == email).first()
-    existing_by_username = User.query.filter(func.lower(User.username) == username.lower()).first()
+    existing_by_email = get_user_by_email(email)
+    existing_by_username = get_user_by_username(username)
 
-    if existing_by_email and existing_by_email.is_admin:
+    if existing_by_email and existing_by_email.get('is_admin'):
         return jsonify({'error': 'This email is reserved for an admin account.'}), 403
 
-    if existing_by_username and (not existing_by_email or existing_by_username.id != existing_by_email.id):
+    if existing_by_username and (
+        not existing_by_email or existing_by_username['id'] != existing_by_email['id']
+    ):
         return jsonify({'error': 'Username already exists. Choose another one.'}), 409
 
     if existing_by_email:
-        user = existing_by_email
-        user.username = username
-        user.name = name
-        user.phone = phone
-        user.address = address
-        user.password_hash = generate_password_hash(f"firebase::{uid or email}")
+        user_id = existing_by_email['id']
+        update_user(user_id, {
+            'username': username,
+            'name': name,
+            'phone': phone,
+            'address': address,
+            'password_hash': generate_password_hash(f"firebase::{uid or email}"),
+        })
+        user = get_user_by_id(user_id)
     else:
-        user = User(
-            username=username,
-            password_hash=generate_password_hash(f"firebase::{uid or email}"),
-            name=name,
-            email=email,
-            phone=phone,
-            address=address,
-            is_admin=False
-        )
-        db.session.add(user)
+        user_id = uid if uid else str(uuid.uuid4()).replace('-', '')[:20]
+        user_dict = {
+            'username': username,
+            'password_hash': generate_password_hash(f"firebase::{uid or email}"),
+            'name': name,
+            'email': email,
+            'phone': phone,
+            'address': address,
+            'is_admin': False,
+        }
+        save_user(user_id, user_dict)
+        user = user_dict
 
-    db.session.commit()
-    set_citizen_session(user)
+    set_citizen_session(user_id, user)
 
     return jsonify({
         'success': True,
-        'message': f'Welcome, {user.name}!',
+        'message': f'Welcome, {user["name"]}!',
         'redirect_url': url_for('citizen_dashboard')
     }), 200
+
 
 @app.route('/citizen/firebase/login', methods=['POST'])
 def citizen_firebase_login():
@@ -415,39 +647,38 @@ def citizen_firebase_login():
     uid = (decoded_token.get('uid') or '').strip()
     display_name = (decoded_token.get('name') or '').strip()
 
-    user = User.query.filter(
-        func.lower(User.email) == email,
-        User.is_admin == False
-    ).first()
-
-    admin_user = User.query.filter(
-        func.lower(User.email) == email,
-        User.is_admin == True
-    ).first()
-    if admin_user:
+    # Check if this email belongs to an admin
+    admin_user = get_user_by_email(email)
+    if admin_user and admin_user.get('is_admin'):
         return jsonify({'error': 'This account is restricted to the admin portal.'}), 403
+
+    user = get_user_by_email(email)
 
     if not user:
         fallback_name = display_name or email.split('@')[0]
-        user = User(
-            username=make_unique_username(fallback_name),
-            password_hash=generate_password_hash(f"firebase::{uid or email}"),
-            name=fallback_name,
-            email=email,
-            phone='',
-            address='',
-            is_admin=False
-        )
-        db.session.add(user)
-        db.session.commit()
-
-    set_citizen_session(user)
+        user_id = uid if uid else str(uuid.uuid4()).replace('-', '')[:20]
+        user_dict = {
+            'username': make_unique_username(fallback_name),
+            'password_hash': generate_password_hash(f"firebase::{uid or email}"),
+            'name': fallback_name,
+            'email': email,
+            'phone': '',
+            'address': '',
+            'is_admin': False,
+        }
+        save_user(user_id, user_dict)
+        user = user_dict
+        user['id'] = user_id
+    
+    user_id = user['id']
+    set_citizen_session(user_id, user)
 
     return jsonify({
         'success': True,
-        'message': f'Welcome back, {user.name}!',
+        'message': f'Welcome back, {user["name"]}!',
         'redirect_url': url_for('citizen_dashboard')
     }), 200
+
 
 # --- CITIZEN DASHBOARD ---
 
@@ -456,23 +687,31 @@ def citizen_dashboard():
     if 'user_id' not in session:
         flash('Please login first.', 'warning')
         return redirect(url_for('citizen_login'))
-        
-    user = User.query.get(session['user_id'])
+
+    user = get_user_by_id(session['user_id'])
     if not user:
         session.clear()
         return redirect(url_for('citizen_login'))
 
-    # Get complaints for this user only
-    my_complaints = Complaint.query.filter_by(user_id=user.id).order_by(Complaint.created_at.desc()).all()
-    
+    my_complaints = get_complaints_by_user(session['user_id'])
+
+    # Enrich complaints with worker name for display
+    for c in my_complaints:
+        w_id = c.get('worker_id')
+        if w_id:
+            w = get_worker_by_id(w_id)
+            c['worker_name'] = w.get('name', '') if w else ''
+        else:
+            c['worker_name'] = ''
+
     return render_template('citizen_dashboard.html', citizen=user, complaints=my_complaints)
+
 
 @app.route('/citizen/register_complaint', methods=['POST'])
 def register_complaint():
     if 'user_id' not in session:
         return redirect(url_for('citizen_login'))
 
-    # --- Server-side input validation ---
     complaint_type = (request.form.get('complaint_type') or '').strip()
     description = (request.form.get('description') or '').strip()
 
@@ -488,28 +727,32 @@ def register_complaint():
         file = request.files['complaint_image']
         if file and file.filename != '' and allowed_file(file.filename):
             filename = secure_filename(file.filename)
-            if not filename:  # secure_filename can return empty string for special-char filenames
+            if not filename:
                 filename = f"image_{int(datetime.now().timestamp())}.jpg"
             unique_name = f"{session['user_id']}_{int(datetime.now().timestamp())}_{filename}"
             full_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
             file.save(full_path)
             image_path = f"uploads/{unique_name}"
 
-    new_complaint = Complaint(
-        user_id=session['user_id'],
-        complaint_type=complaint_type,
-        description=description,
-        latitude=request.form.get('latitude') or 'N/A',
-        longitude=request.form.get('longitude') or 'N/A',
-        department='Unassigned',
-        image_path=image_path
-    )
+    complaint_dict = {
+        'user_id': session['user_id'],
+        'worker_id': None,
+        'complaint_type': complaint_type,
+        'description': description,
+        'latitude': request.form.get('latitude') or 'N/A',
+        'longitude': request.form.get('longitude') or 'N/A',
+        'department': 'Unassigned',
+        'status': 'Pending',
+        'image_path': image_path,
+        'remarks': None,
+        'created_at': datetime.utcnow().isoformat(),
+    }
 
-    db.session.add(new_complaint)
-    db.session.commit()
+    add_complaint(complaint_dict)
 
     flash('Complaint registered successfully!', 'success')
     return redirect(url_for('citizen_dashboard'))
+
 
 @app.route('/citizen/logout')
 def citizen_logout():
@@ -517,137 +760,162 @@ def citizen_logout():
     flash('Logged out.', 'info')
     return redirect(url_for('index'))
 
+
 @app.route('/citizen/profile/update', methods=['POST'])
 def citizen_update_profile():
     if 'user_id' not in session:
         flash('Please login first.', 'warning')
         return redirect(url_for('citizen_login'))
-    
-    user = User.query.get(session['user_id'])
+
+    user = get_user_by_id(session['user_id'])
     if not user:
         session.clear()
         return redirect(url_for('citizen_login'))
-    
-    user.name = request.form.get('name', user.name)
+
     submitted_email = (request.form.get('email') or '').strip().lower()
-    if submitted_email and submitted_email != (user.email or '').lower():
+    if submitted_email and submitted_email != (user.get('email') or '').lower():
         flash('Email is managed by Firebase Authentication and cannot be changed here.', 'info')
 
-    user.phone = request.form.get('phone', user.phone)
-    user.address = request.form.get('address', user.address)
-    
     new_password = request.form.get('new_password')
     if new_password:
         flash('Password updates are managed by Firebase Authentication.', 'info')
-    
-    db.session.commit()
+
+    update_user(session['user_id'], {
+        'name': request.form.get('name', user.get('name', '')),
+        'phone': request.form.get('phone', user.get('phone', '')),
+        'address': request.form.get('address', user.get('address', '')),
+    })
+
     flash('Profile updated successfully.', 'success')
     return redirect(url_for('citizen_dashboard') + '#profile')
+
 
 # --- ADMIN ROUTES ---
 
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
-        login_input = request.form.get('username')
-        password = request.form.get('password')
-        
-        # FIXED: Admin login now also supports Username OR Email
-        user = User.query.filter(
-            or_(User.username == login_input, User.email == login_input)
-        ).filter_by(is_admin=True).first()
-        
-        if user and check_password_hash(user.password_hash, password):
-            session['user_id'] = user.id
+        login_input = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+
+        # Find admin by username OR email
+        user = None
+        for uid, u in _all_users().items():
+            if not u.get('is_admin'):
+                continue
+            if (u.get('username', '').lower() == login_input.lower() or
+                    u.get('email', '').lower() == login_input.lower()):
+                u['id'] = uid
+                user = u
+                break
+
+        if user and check_password_hash(user.get('password_hash', ''), password):
+            session['user_id'] = user['id']
             session['is_admin'] = True
             session['admin_logged_in'] = True
+            session.pop('citizen_logged_in', None)
             flash('Admin access granted.', 'success')
             return redirect(url_for('admin_dashboard'))
-        
+
         flash('Invalid admin credentials.', 'danger')
-        
+
     return render_template('admin_login.html')
+
 
 @app.route('/admin/register', methods=['GET', 'POST'])
 def admin_register():
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        name = request.form.get('name')
+        username = (request.form.get('username') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
+        password = request.form.get('password') or ''
+        name = (request.form.get('name') or '').strip()
 
-        # Check if username or email already exists
-        existing_user = User.query.filter(
-            or_(User.username == username, User.email == email)
-        ).first()
-
-        if existing_user:
+        if get_user_by_username(username) or get_user_by_email(email):
             flash('Username or Email already exists!', 'danger')
             return redirect(url_for('admin_register'))
 
-        hashed_pw = generate_password_hash(password)
-        new_admin = User(
-            username=username,
-            password_hash=hashed_pw,
-            name=name,
-            email=email,
-            phone=request.form.get('phone', ''),
-            address=request.form.get('department', ''),
-            is_admin=True
-        )
-
-        db.session.add(new_admin)
-        db.session.commit()
+        admin_id = str(uuid.uuid4()).replace('-', '')[:20]
+        save_user(admin_id, {
+            'username': username,
+            'password_hash': generate_password_hash(password),
+            'name': name,
+            'email': email,
+            'phone': request.form.get('phone', ''),
+            'address': request.form.get('department', ''),
+            'is_admin': True,
+        })
 
         flash('Admin registration successful! Please login.', 'success')
         return redirect(url_for('admin_login'))
 
     return render_template('admin_registration.html')
 
+
 @app.route('/admin/dashboard')
 def admin_dashboard():
     if not session.get('is_admin'):
         flash('Restricted access.', 'danger')
         return redirect(url_for('admin_login'))
-    
-    admin_user = User.query.get(session.get('user_id'))
-    all_complaints = Complaint.query.order_by(Complaint.created_at.desc()).all()
-    
-    # Compute department workload stats
+
+    admin_user = get_user_by_id(session.get('user_id'))
+    all_complaints = get_all_complaints()
+
+    # Enrich with user and worker info
+    for c in all_complaints:
+        u = get_user_by_id(c.get('user_id'))
+        c['author_name'] = u.get('name', 'Unknown') if u else 'Unknown'
+        w_id = c.get('worker_id')
+        if w_id:
+            w = get_worker_by_id(w_id)
+            c['worker_name'] = w.get('name', '') if w else ''
+        else:
+            c['worker_name'] = ''
+
     dept_counts = {}
     for c in all_complaints:
-        dept = c.department or 'Unassigned'
+        dept = c.get('department') or 'Unassigned'
         dept_counts[dept] = dept_counts.get(dept, 0) + 1
-    total = len(all_complaints) if all_complaints else 1  # avoid division by zero
-    dept_stats = [{'name': dept, 'count': count, 'pct': int(count / total * 100)} for dept, count in dept_counts.items()]
+    total = len(all_complaints) if all_complaints else 1
+    dept_stats = [{'name': dept, 'count': count, 'pct': int(count / total * 100)}
+                  for dept, count in dept_counts.items()]
     dept_stats.sort(key=lambda x: x['count'], reverse=True)
-    
-    all_workers = Worker.query.filter_by(is_available=True).order_by(Worker.name).all()
-    
-    return render_template('admin_dashboard.html', complaints=all_complaints, admin=admin_user, dept_stats=dept_stats, workers=all_workers)
 
-@app.route('/admin/update_complaint/<int:complaint_id>', methods=['POST'])
+    all_workers = get_all_workers(available_only=True)
+
+    return render_template('admin_dashboard.html',
+                           complaints=all_complaints,
+                           admin=admin_user,
+                           dept_stats=dept_stats,
+                           workers=all_workers)
+
+
+@app.route('/admin/update_complaint/<complaint_id>', methods=['POST'])
 def update_complaint(complaint_id):
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
 
-    complaint = Complaint.query.get_or_404(complaint_id)
-    complaint.status = request.form.get('status')
-    complaint.department = request.form.get('department')
-    complaint.remarks = request.form.get('remarks')
+    complaint = get_complaint_by_id(complaint_id)
+    if not complaint:
+        flash('Complaint not found.', 'danger')
+        return redirect(url_for('admin_dashboard'))
 
-    worker_id = request.form.get('worker_id', '').strip()
-    complaint.worker_id = int(worker_id) if worker_id else None
+    worker_id = (request.form.get('worker_id') or '').strip()
 
-    db.session.commit()
+    update_complaint_data(complaint_id, {
+        'status': request.form.get('status', complaint.get('status')),
+        'department': request.form.get('department', complaint.get('department')),
+        'remarks': request.form.get('remarks', complaint.get('remarks')),
+        'worker_id': worker_id if worker_id else None,
+    })
+
     flash('Complaint updated successfully.', 'success')
 
-    # Open-redirect fix: only follow the `next` param if it is a safe local path.
     next_page = request.form.get('next', '')
     parsed = urlparse(next_page)
     if parsed.netloc or parsed.scheme or not next_page.startswith('/'):
         next_page = url_for('admin_dashboard')
     return redirect(next_page)
+
 
 # --- ALL COMPLAINTS PAGE ---
 
@@ -656,11 +924,26 @@ def admin_complaints():
     if not session.get('is_admin'):
         flash('Restricted access.', 'danger')
         return redirect(url_for('admin_login'))
-    
-    admin_user = User.query.get(session.get('user_id'))
-    all_complaints = Complaint.query.order_by(Complaint.created_at.desc()).all()
-    all_workers = Worker.query.filter_by(is_available=True).order_by(Worker.name).all()
-    return render_template('admin_complaints.html', complaints=all_complaints, admin=admin_user, workers=all_workers)
+
+    admin_user = get_user_by_id(session.get('user_id'))
+    all_complaints = get_all_complaints()
+
+    for c in all_complaints:
+        u = get_user_by_id(c.get('user_id'))
+        c['author_name'] = u.get('name', 'Unknown') if u else 'Unknown'
+        w_id = c.get('worker_id')
+        if w_id:
+            w = get_worker_by_id(w_id)
+            c['worker_name'] = w.get('name', '') if w else ''
+        else:
+            c['worker_name'] = ''
+
+    all_workers = get_all_workers(available_only=True)
+    return render_template('admin_complaints.html',
+                           complaints=all_complaints,
+                           admin=admin_user,
+                           workers=all_workers)
+
 
 # --- DEPARTMENT REPORTS ---
 
@@ -669,27 +952,31 @@ def admin_reports():
     if not session.get('is_admin'):
         flash('Restricted access.', 'danger')
         return redirect(url_for('admin_login'))
-    
-    admin_user = User.query.get(session.get('user_id'))
-    all_complaints = Complaint.query.all()
-    
-    # Build department-level report data
+
+    admin_user = get_user_by_id(session.get('user_id'))
+    all_complaints = get_all_complaints()
+
     dept_data = {}
     for c in all_complaints:
-        dept = c.department or 'Unassigned'
+        dept = c.get('department') or 'Unassigned'
         if dept not in dept_data:
             dept_data[dept] = {'total': 0, 'pending': 0, 'in_progress': 0, 'resolved': 0, 'rejected': 0}
         dept_data[dept]['total'] += 1
-        if c.status == 'Pending':
+        status = c.get('status', '')
+        if status == 'Pending':
             dept_data[dept]['pending'] += 1
-        elif c.status == 'In Progress':
+        elif status == 'In Progress':
             dept_data[dept]['in_progress'] += 1
-        elif c.status == 'Resolved':
+        elif status == 'Resolved':
             dept_data[dept]['resolved'] += 1
-        elif c.status == 'Rejected':
+        elif status == 'Rejected':
             dept_data[dept]['rejected'] += 1
-    
-    return render_template('admin_reports.html', dept_data=dept_data, total_complaints=len(all_complaints), admin=admin_user)
+
+    return render_template('admin_reports.html',
+                           dept_data=dept_data,
+                           total_complaints=len(all_complaints),
+                           admin=admin_user)
+
 
 # --- USER MANAGEMENT ---
 
@@ -698,33 +985,47 @@ def admin_users():
     if not session.get('is_admin'):
         flash('Restricted access.', 'danger')
         return redirect(url_for('admin_login'))
-    
-    admin_user = User.query.get(session.get('user_id'))
-    citizens = User.query.filter_by(is_admin=False).order_by(User.name).all()
-    admins = User.query.filter_by(is_admin=True).order_by(User.name).all()
+
+    admin_user = get_user_by_id(session.get('user_id'))
+    all_users_raw = _all_users()
+    citizens = []
+    admins = []
+    for uid, u in all_users_raw.items():
+        if not isinstance(u, dict):
+            continue
+        u['id'] = uid
+        if u.get('is_admin'):
+            admins.append(u)
+        else:
+            citizens.append(u)
+    citizens.sort(key=lambda x: x.get('name', ''))
+    admins.sort(key=lambda x: x.get('name', ''))
+
     return render_template('admin_users.html', citizens=citizens, admins=admins, admin=admin_user)
 
-@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+
+@app.route('/admin/users/<user_id>/delete', methods=['POST'])
 def delete_user(user_id):
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
 
-    # Prevent admin from deleting their own account via this route
     if user_id == session.get('user_id'):
         flash('You cannot delete your own account.', 'danger')
         return redirect(url_for('admin_users'))
 
-    user = User.query.get_or_404(user_id)
-    if user.is_admin:
+    user = get_user_by_id(user_id)
+    if not user:
+        flash('User not found.', 'danger')
+        return redirect(url_for('admin_users'))
+    if user.get('is_admin'):
         flash('Cannot delete admin accounts from here.', 'warning')
         return redirect(url_for('admin_users'))
 
-    # Delete user's complaints first
-    Complaint.query.filter_by(user_id=user.id).delete()
-    db.session.delete(user)
-    db.session.commit()
-    flash(f'User "{user.name}" deleted.', 'success')
+    delete_complaints_by_user(user_id)
+    delete_user_data(user_id)
+    flash(f'User "{user.get("name", user_id)}" deleted.', 'success')
     return redirect(url_for('admin_users'))
+
 
 # --- WORKER MANAGEMENT ---
 
@@ -733,48 +1034,62 @@ def admin_workers():
     if not session.get('is_admin'):
         flash('Restricted access.', 'danger')
         return redirect(url_for('admin_login'))
-    
+
     if request.method == 'POST':
-        new_worker = Worker(
-            name=request.form.get('name'),
-            phone=request.form.get('phone'),
-            department=request.form.get('department'),
-            area=request.form.get('area'),
-            is_available=True
-        )
-        db.session.add(new_worker)
-        db.session.commit()
-        flash(f'Worker "{new_worker.name}" added successfully.', 'success')
+        worker_dict = {
+            'name': request.form.get('name', ''),
+            'phone': request.form.get('phone', ''),
+            'department': request.form.get('department', ''),
+            'area': request.form.get('area', ''),
+            'is_available': True,
+            'created_at': datetime.utcnow().isoformat(),
+        }
+        new_key = add_worker(worker_dict)
+        flash(f'Worker "{worker_dict["name"]}" added successfully.', 'success')
         return redirect(url_for('admin_workers'))
-    
-    admin_user = User.query.get(session.get('user_id'))
-    workers = Worker.query.order_by(Worker.created_at.desc()).all()
+
+    admin_user = get_user_by_id(session.get('user_id'))
+    workers = get_all_workers()
+    workers.sort(key=lambda x: x.get('created_at', ''), reverse=True)
     return render_template('admin_workers.html', workers=workers, admin=admin_user)
 
-@app.route('/admin/workers/<int:worker_id>/delete', methods=['POST'])
-def delete_worker(worker_id):
+
+@app.route('/admin/workers/<worker_id>/delete', methods=['POST'])
+def delete_worker_route(worker_id):
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
-    
-    worker = Worker.query.get_or_404(worker_id)
-    # Unassign worker from any complaints
-    Complaint.query.filter_by(worker_id=worker.id).update({'worker_id': None})
-    db.session.delete(worker)
-    db.session.commit()
-    flash(f'Worker "{worker.name}" deleted.', 'success')
+
+    worker = get_worker_by_id(worker_id)
+    if not worker:
+        flash('Worker not found.', 'danger')
+        return redirect(url_for('admin_workers'))
+
+    # Unassign worker from complaints
+    for cid, c in _all_complaints().items():
+        if isinstance(c, dict) and str(c.get('worker_id', '')) == str(worker_id):
+            update_complaint_data(cid, {'worker_id': None})
+
+    delete_worker(worker_id)
+    flash(f'Worker "{worker.get("name", worker_id)}" deleted.', 'success')
     return redirect(url_for('admin_workers'))
 
-@app.route('/admin/workers/<int:worker_id>/toggle', methods=['POST'])
+
+@app.route('/admin/workers/<worker_id>/toggle', methods=['POST'])
 def toggle_worker(worker_id):
     if not session.get('is_admin'):
         return redirect(url_for('admin_login'))
-    
-    worker = Worker.query.get_or_404(worker_id)
-    worker.is_available = not worker.is_available
-    db.session.commit()
-    status_text = 'available' if worker.is_available else 'unavailable'
-    flash(f'Worker "{worker.name}" marked as {status_text}.', 'success')
+
+    worker = get_worker_by_id(worker_id)
+    if not worker:
+        flash('Worker not found.', 'danger')
+        return redirect(url_for('admin_workers'))
+
+    new_status = not worker.get('is_available', True)
+    update_worker(worker_id, {'is_available': new_status})
+    status_text = 'available' if new_status else 'unavailable'
+    flash(f'Worker "{worker.get("name", worker_id)}" marked as {status_text}.', 'success')
     return redirect(url_for('admin_workers'))
+
 
 # --- ADMIN SETTINGS ---
 
@@ -783,24 +1098,26 @@ def admin_settings():
     if not session.get('is_admin'):
         flash('Restricted access.', 'danger')
         return redirect(url_for('admin_login'))
-    
-    admin_user = User.query.get(session.get('user_id'))
-    
+
+    admin_user = get_user_by_id(session.get('user_id'))
+
     if request.method == 'POST':
-        admin_user.name = request.form.get('name', admin_user.name)
-        admin_user.email = request.form.get('email', admin_user.email)
-        admin_user.phone = request.form.get('phone', admin_user.phone)
-        
+        updates = {
+            'name': request.form.get('name', admin_user.get('name', '')),
+            'email': request.form.get('email', admin_user.get('email', '')),
+            'phone': request.form.get('phone', admin_user.get('phone', '')),
+        }
         new_password = request.form.get('new_password')
         if new_password and len(new_password) >= 6:
-            admin_user.password_hash = generate_password_hash(new_password)
+            updates['password_hash'] = generate_password_hash(new_password)
             flash('Password updated.', 'success')
-        
-        db.session.commit()
+
+        update_user(session.get('user_id'), updates)
         flash('Settings saved.', 'success')
         return redirect(url_for('admin_settings'))
-    
+
     return render_template('admin_settings.html', admin=admin_user)
+
 
 @app.route('/admin/logout')
 def admin_logout():
@@ -808,26 +1125,37 @@ def admin_logout():
     flash('Admin logged out.', 'info')
     return redirect(url_for('index'))
 
-@app.route('/complaint/<int:complaint_id>')
+
+@app.route('/complaint/<complaint_id>')
 def view_complaint(complaint_id):
-    complaint = Complaint.query.get_or_404(complaint_id)
+    complaint = get_complaint_by_id(complaint_id)
+    if not complaint:
+        flash('Complaint not found.', 'danger')
+        return redirect(url_for('index'))
     return render_template('complaint_detail.html', complaint=complaint)
 
+
 # ==================== INITIALIZATION ====================
+def seed_default_admin():
+    """Create a default admin account if none exists in RTDB."""
+    for uid, u in _all_users().items():
+        if u.get('is_admin'):
+            return  # at least one admin exists
+    print("No admin found in RTDB. Creating default admin account (admin / admin123)...")
+    admin_id = str(uuid.uuid4()).replace('-', '')[:20]
+    save_user(admin_id, {
+        'username': 'admin',
+        'password_hash': generate_password_hash('admin123'),
+        'name': 'System Admin',
+        'email': 'admin@civic.local',
+        'phone': '',
+        'address': '',
+        'is_admin': True,
+    })
+    print(f"Default admin created with ID: {admin_id}")
+
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        
-        if not User.query.filter_by(username='admin').first():
-            print("Creating default admin account (admin / admin123)...")
-            admin = User(
-                username='admin',
-                password_hash=generate_password_hash('admin123'),
-                name='System Admin',
-                email='admin@civic.local',
-                is_admin=True
-            )
-            db.session.add(admin)
-            db.session.commit()
-            
+    ensure_firebase_admin_initialized()
+    seed_default_admin()
     app.run(debug=True)

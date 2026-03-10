@@ -23,7 +23,7 @@
         {% endwith %}
         <a href="{{ url_for('citizen_dashboard') }}" class="text-primary hover:underline">&larr; Back to Dashboard</a>
         <h1 class="text-2xl font-bold mt-4">Complaint #CA-{{ complaint.id }}</h1>
-        <p class="text-sm text-slate-500">Submitted: {{ complaint.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+        <p class="text-sm text-slate-500">Submitted: {{ complaint.created_at | format_date('%Y-%m-%d %H:%M') }}</p>
 
         <div
             class="mt-6 bg-white dark:bg-slate-900 p-6 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800">
