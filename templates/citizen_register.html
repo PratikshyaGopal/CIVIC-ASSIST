@@ -52,6 +52,7 @@
         }
     </style>
 </head>
+
 <body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
     <!-- Top Navigation Bar -->
     <header
@@ -141,8 +142,10 @@
                         <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Create Your Account</h2>
                         <p class="text-slate-500 text-sm mt-1">Please fill in your legal information to register.</p>
                     </div>
-                    <form id="citizen-register-form" method="post" action="{{ url_for('citizen_register') }}" class="flex flex-col gap-5">
-                        <div id="register-error" class="hidden px-4 py-3 rounded-lg text-sm font-medium bg-red-100 text-red-700"></div>
+                    <form id="citizen-register-form" method="post" action="{{ url_for('citizen_register') }}"
+                        class="flex flex-col gap-5">
+                        <div id="register-error"
+                            class="hidden px-4 py-3 rounded-lg text-sm font-medium bg-red-100 text-red-700"></div>
                         <!-- Full Name -->
                         <div class="flex flex-col gap-2">
                             <label class="text-sm font-semibold text-slate-700 dark:text-slate-300">Full Name</label>
@@ -287,7 +290,8 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
         import { getAuth, createUserWithEmailAndPassword, deleteUser } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 
-        const firebaseConfig = {{ firebase_web_config|tojson }};
+        // @ts-ignore - Jinja2 template: replaced by Flask with real JSON at runtime
+        const firebaseConfig = {{ firebase_web_config| tojson }};
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
 
@@ -368,6 +372,7 @@
 
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
+                    console.log(data)
                     throw new Error(data.error || 'Unable to complete registration.');
                 }
 
@@ -390,4 +395,3 @@
 </body>
 
 </html>
-
