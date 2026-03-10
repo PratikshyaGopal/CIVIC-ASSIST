@@ -293,9 +293,11 @@
                                     </td>
                                     <td class="px-6 py-4 text-right">
                                         <div class="flex items-center justify-end gap-2">
-                                            <button
-                                                onclick="openModal({{ c.id }}, '{{ c.status }}', '{{ c.department or 'Unassigned' }}', {{ (c.remarks or '')|tojson }})"
-                                                class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                            <button data-complaint-id="{{ c.id }}" data-status="{{ c.status }}"
+                                                data-department="{{ c.department or 'Unassigned' }}"
+                                                data-remarks="{{ c.remarks or '' }}"
+                                                data-worker-id="{{ c.worker_id or '' }}"
+                                                class="open-modal-btn p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                                 title="Update Complaint">
                                                 <span class="material-symbols-outlined text-xl">edit_square</span>
                                             </button>
@@ -392,6 +394,7 @@
                 <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
             </div>
             <form id="updateForm" method="post">
+                <input type="hidden" name="next" value="{{ url_for('admin_dashboard') }}">
                 <div class="space-y-4">
                     <div>
                         <label
@@ -495,19 +498,26 @@
             if (countEl) countEl.textContent = 'Showing ' + visibleCount + ' entries';
         }
 
-        // Modal functions
-        function openModal(id, status, department, remarks) {
+        // Modal functions — use data-* attributes to avoid JS quoting issues
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.open-modal-btn');
+            if (!btn) return;
+            var id = btn.dataset.complaintId;
+            var status = btn.dataset.status;
+            var department = btn.dataset.department;
+            var remarks = btn.dataset.remarks;
+            var workerId = btn.dataset.workerId;
+
             var modal = document.getElementById('updateModal');
             var form = document.getElementById('updateForm');
             form.action = '/admin/update_complaint/' + id;
-            document.getElementById('status').value = status;
-            document.getElementById('department').value = department;
+            document.getElementById('status').value = status || '';
+            document.getElementById('department').value = department || '';
             document.getElementById('remarks').value = remarks || '';
-            // Reset worker selection
             var workerSelect = document.getElementById('worker_id');
-            if (workerSelect) workerSelect.value = '';
+            if (workerSelect) workerSelect.value = workerId || '';
             modal.style.display = 'flex';
-        }
+        });
 
         function closeModal() {
             document.getElementById('updateModal').style.display = 'none';
@@ -517,11 +527,7 @@
         document.getElementById('updateModal').addEventListener('click', function (e) {
             if (e.target === this) closeModal();
         });
-
-        // Close modal on Escape key
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') closeModal();
-        });
+        // Note: Escape key handler and global click-outside handler are in script.js
 
         // Export report as CSV
         function exportReport() {
@@ -544,10 +550,9 @@
             a.click();
         }
 
-        // Apply default 30-day filter on page load
-        document.addEventListener('DOMContentLoaded', function () {
-            filterTable();
-        });
+        // Apply default 30-day filter on page load.
+        // Script runs at bottom of <body> so DOM is already ready — call directly.
+        filterTable();
     </script>
 </body>
 

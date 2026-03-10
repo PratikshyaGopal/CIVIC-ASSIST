@@ -636,9 +636,8 @@ def update_complaint(complaint_id):
     complaint.department = request.form.get('department')
     complaint.remarks = request.form.get('remarks')
 
-    worker_id = request.form.get('worker_id')
-    if worker_id:
-        complaint.worker_id = int(worker_id)
+    worker_id = request.form.get('worker_id', '').strip()
+    complaint.worker_id = int(worker_id) if worker_id else None
 
     db.session.commit()
     flash('Complaint updated successfully.', 'success')

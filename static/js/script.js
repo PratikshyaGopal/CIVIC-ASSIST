@@ -1,43 +1,57 @@
 // ==================== MODAL FUNCTIONALITY ====================
 
 /**
- * Open the update modal and populate it with complaint data
+ * Open the update modal and populate it with complaint data.
+ * Uses data-* attributes on the button element (preferred) or explicit arguments.
  * @param {number} complaintId - The ID of the complaint to update
  * @param {string} currentStatus - Current status of the complaint
  * @param {string} currentDepartment - Current department assigned
  * @param {string} currentRemarks - Current remarks
+ * @param {string} [workerId] - Currently assigned worker ID
  */
-function openModal(complaintId, currentStatus, currentDepartment, currentRemarks) {
-    const modal = document.getElementById('updateModal');
-    const form = document.getElementById('updateForm');
+function openModal(complaintId, currentStatus, currentDepartment, currentRemarks, workerId) {
+    var modal = document.getElementById('updateModal');
+    var form = document.getElementById('updateForm');
+    if (!modal || !form) return;
 
     // Set form action URL
-    form.action = `/admin/update_complaint/${complaintId}`;
+    form.action = '/admin/update_complaint/' + complaintId;
 
     // Populate form fields with current values
-    document.getElementById('status').value = currentStatus;
-    document.getElementById('department').value = currentDepartment;
-    document.getElementById('remarks').value = currentRemarks;
+    var statusEl = document.getElementById('status');
+    var deptEl = document.getElementById('department');
+    var remarksEl = document.getElementById('remarks');
+    var workerEl = document.getElementById('worker_id');
+    if (statusEl) statusEl.value = currentStatus || '';
+    if (deptEl) deptEl.value = currentDepartment || '';
+    if (remarksEl) remarksEl.value = currentRemarks || '';
+    if (workerEl) workerEl.value = workerId || '';
 
-    // Display modal
-    modal.style.display = 'block';
+    // Display modal — must use 'flex' so Tailwind flex layout works
+    modal.style.display = 'flex';
 }
 
 /**
  * Close the update modal
  */
 function closeModal() {
-    const modal = document.getElementById('updateModal');
-    modal.style.display = 'none';
+    var modal = document.getElementById('updateModal');
+    if (modal) modal.style.display = 'none';
 }
 
-// Close modal when clicking outside of it
-window.onclick = function (event) {
-    const modal = document.getElementById('updateModal');
-    if (event.target == modal) {
+// Close modal when clicking on the backdrop (outside modal card).
+// Use addEventListener so we don't override other click handlers.
+window.addEventListener('click', function (event) {
+    var modal = document.getElementById('updateModal');
+    if (modal && event.target === modal) {
         modal.style.display = 'none';
     }
-}
+});
+
+// Close modal on Escape key (global, applies to all admin pages)
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeModal();
+});
 
 // Module-level reference so we can update the map on repeated clicks
 let _complaintMap = null;
@@ -90,7 +104,7 @@ function getLocation() {
 
             // ── Show the Leaflet map ──────────────────────────────────────
             const placeholder = document.getElementById('map-placeholder');
-            const mapDiv      = document.getElementById('complaint-map');
+            const mapDiv = document.getElementById('complaint-map');
 
             if (mapDiv) {
                 // Hide placeholder, show map
@@ -118,12 +132,12 @@ function getLocation() {
                 }
 
                 // Leaflet needs a size refresh when revealed from display:none
-                setTimeout(function() { _complaintMap.invalidateSize(); }, 100);
+                setTimeout(function () { _complaintMap.invalidateSize(); }, 100);
 
                 // Optional: reverse geocode with Nominatim (free, no API key)
                 fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + latitude + '&lon=' + longitude)
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
                         if (data && data.display_name) {
                             const addr = data.display_name;
                             if (_complaintMarker) {
@@ -131,12 +145,12 @@ function getLocation() {
                                 _complaintMarker.openPopup();
                             }
                             locationDisplay.innerHTML =
-                                '📍 <strong>' + addr.split(',').slice(0,3).join(', ') + '</strong>' +
+                                '📍 <strong>' + addr.split(',').slice(0, 3).join(', ') + '</strong>' +
                                 '<br><small>Lat: ' + latitude.toFixed(6) + ', Lon: ' + longitude.toFixed(6) + '</small>' +
                                 '<br><a href="https://www.google.com/maps?q=' + latitude + ',' + longitude + '" target="_blank" style="color: #137fec;">View on Google Maps</a>';
                         }
                     })
-                    .catch(function() { /* silently ignore reverse geocode failures */ });
+                    .catch(function () { /* silently ignore reverse geocode failures */ });
             }
             // ─────────────────────────────────────────────────────────────
         },

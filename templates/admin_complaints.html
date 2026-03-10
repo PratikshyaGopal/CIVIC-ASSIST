@@ -182,9 +182,11 @@
                                     </td>
                                     <td class="px-6 py-4 text-right">
                                         <div class="flex items-center justify-end gap-2">
-                                            <button
-                                                onclick="openModal({{ c.id }}, '{{ c.status }}', '{{ c.department or 'Unassigned' }}', {{ (c.remarks or '')|tojson }}, '{{ c.worker_id or '' }}')"
-                                                class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                            <button data-complaint-id="{{ c.id }}" data-status="{{ c.status }}"
+                                                data-department="{{ c.department or 'Unassigned' }}"
+                                                data-remarks="{{ c.remarks or '' }}"
+                                                data-worker-id="{{ c.worker_id or '' }}"
+                                                class="open-modal-btn p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                                 title="Update"><span
                                                     class="material-symbols-outlined text-xl">edit_square</span></button>
                                             <a href="{{ url_for('view_complaint', complaint_id=c.id) }}"
@@ -269,14 +271,18 @@
 
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
     <script>
-        function openModal(id, status, dept, remarks, workerId) {
-            document.getElementById('updateForm').action = '/admin/update_complaint/' + id;
-            document.getElementById('status').value = status;
-            document.getElementById('department').value = dept;
-            document.getElementById('remarks').value = remarks;
-            if (workerId) document.getElementById('worker_id').value = workerId;
+        // Modal — use data-* attributes to avoid JS quoting issues with special chars
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.open-modal-btn');
+            if (!btn) return;
+            document.getElementById('updateForm').action = '/admin/update_complaint/' + btn.dataset.complaintId;
+            document.getElementById('status').value = btn.dataset.status || '';
+            document.getElementById('department').value = btn.dataset.department || '';
+            document.getElementById('remarks').value = btn.dataset.remarks || '';
+            var ws = document.getElementById('worker_id');
+            if (ws) ws.value = btn.dataset.workerId || '';
             document.getElementById('updateModal').style.display = 'flex';
-        }
+        });
         function closeModal() { document.getElementById('updateModal').style.display = 'none'; }
         window.addEventListener('click', function (e) { if (e.target.id === 'updateModal') closeModal(); });
         function filterTable() {
