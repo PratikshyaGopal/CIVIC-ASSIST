@@ -12,10 +12,15 @@ import uuid
 
 try:
     import jwt as pyjwt
-    import requests as http_requests
     _pyjwt_available = True
 except ImportError:
+    pyjwt = None
     _pyjwt_available = False
+
+try:
+    import requests as http_requests
+except ImportError:
+    http_requests = None
 
 # JWKS cache: { 'keys': {...}, 'fetched_at': datetime }
 _jwks_cache = {}
@@ -452,9 +457,8 @@ def _verify_firebase_id_token_jwks(id_token):
     return payload
 
 
-def verify_firebase_token_from_request():
-    data = request.get_json(silent=True) or {}
-    id_token = data.get('idToken')
+def verify_firebase_id_token(id_token):
+    """Verify a Firebase ID token string. Returns (decoded_token, error_string)."""
     if not id_token:
         return None, 'Missing Firebase ID token.'
 
@@ -489,6 +493,14 @@ def verify_firebase_token_from_request():
 
     decoded_token['email'] = email
     return decoded_token, None
+
+
+def verify_firebase_token_from_request():
+    """Read JSON from request ONCE and verify the Firebase ID token."""
+    data = request.get_json(silent=True, force=True) or {}
+    id_token = data.get('idToken')
+    decoded_token, error = verify_firebase_id_token(id_token)
+    return decoded_token, error, data
 
 
 def set_citizen_session(user_id, user):
@@ -574,11 +586,10 @@ def citizen_firebase_resolve_email():
 
 @app.route('/citizen/firebase/register', methods=['POST'])
 def citizen_firebase_register():
-    decoded_token, token_error = verify_firebase_token_from_request()
+    decoded_token, token_error, data = verify_firebase_token_from_request()
     if token_error:
         return jsonify({'error': token_error}), 401
 
-    data = request.get_json(silent=True) or {}
     uid = (decoded_token.get('uid') or '').strip()
     email = decoded_token['email']
     username = (data.get('username') or '').strip()
@@ -639,7 +650,7 @@ def citizen_firebase_register():
 
 @app.route('/citizen/firebase/login', methods=['POST'])
 def citizen_firebase_login():
-    decoded_token, token_error = verify_firebase_token_from_request()
+    decoded_token, token_error, _data = verify_firebase_token_from_request()
     if token_error:
         return jsonify({'error': token_error}), 401
 
