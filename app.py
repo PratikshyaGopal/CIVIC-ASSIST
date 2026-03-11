@@ -72,7 +72,10 @@ UPLOAD_FOLDER = 'static/uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+    try:
+        os.makedirs(UPLOAD_FOLDER)
+    except OSError:
+        pass  # Read-only filesystem on Vercel — uploads disabled but app still runs
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024  # 5MB limit
@@ -737,13 +740,16 @@ def register_complaint():
     if 'complaint_image' in request.files:
         file = request.files['complaint_image']
         if file and file.filename != '' and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            if not filename:
-                filename = f"image_{int(datetime.now().timestamp())}.jpg"
-            unique_name = f"{session['user_id']}_{int(datetime.now().timestamp())}_{filename}"
-            full_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
-            file.save(full_path)
-            image_path = f"uploads/{unique_name}"
+            try:
+                filename = secure_filename(file.filename)
+                if not filename:
+                    filename = f"image_{int(datetime.now().timestamp())}.jpg"
+                unique_name = f"{session['user_id']}_{int(datetime.now().timestamp())}_{filename}"
+                full_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
+                file.save(full_path)
+                image_path = f"uploads/{unique_name}"
+            except OSError:
+                pass  # Read-only filesystem on Vercel — skip image, save complaint anyway
 
     complaint_dict = {
         'user_id': session['user_id'],
