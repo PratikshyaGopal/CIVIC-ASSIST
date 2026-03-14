@@ -671,7 +671,18 @@
         let isListening = false;
         let shouldKeepListening = false;
         let restartAttempts = 0;
-        const maxRestartAttempts = 6;
+        const maxRestartAttempts = 12;
+        let transientErrorStreak = 0;
+        let lastStatusUpdateAt = 0;
+        let restartTimer = null;
+
+        function setVoiceStatus(statusEl, message, force = false) {
+            if (!statusEl) return;
+            const now = Date.now();
+            if (!force && now - lastStatusUpdateAt < 1800) return;
+            statusEl.textContent = message;
+            lastStatusUpdateAt = now;
+        }
 
         function toggleVoiceInput() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -705,11 +716,14 @@
 
             recognition.onstart = () => {
                 isListening = true;
-                restartAttempts = 0;
+                if (restartTimer) {
+                    clearTimeout(restartTimer);
+                    restartTimer = null;
+                }
                 btn.classList.add('listening');
                 btnLabel.textContent = 'Stop';
                 btn.querySelector('.mic-icon').textContent = 'mic_off';
-                statusEl.textContent = '🔴 Listening... speak your complaint clearly';
+                setVoiceStatus(statusEl, '🔴 Listening... speak your complaint clearly', true);
                 statusEl.classList.add('active');
             };
 
@@ -728,6 +742,7 @@
                 if (final) {
                     textarea.value = (textarea.value + final).trimStart();
                     restartAttempts = 0;
+                    transientErrorStreak = 0;
                 }
                 textarea.placeholder = interim ? `...${interim}` : 'Describe the issue in detail, or click \'Speak\' to use your voice...';
             };
@@ -742,21 +757,27 @@
 
                 // no-speech is a common transient event; keep the session active.
                 if (e.error === 'no-speech') {
-                    statusEl.textContent = '🔴 Listening... no speech detected yet, try speaking louder.';
+                    transientErrorStreak += 1;
+                    setVoiceStatus(statusEl, '🔴 Listening... no speech detected yet, try speaking louder.');
                     return;
                 }
 
                 // aborted/audio-capture are frequently transient while restarting.
                 if (e.error === 'aborted' || e.error === 'audio-capture') {
+                    transientErrorStreak += 1;
                     return;
                 }
 
                 if (e.error === 'network') {
-                    statusEl.textContent = '⚠️ Network issue with voice service. Retrying...';
+                    transientErrorStreak += 1;
+                    if (transientErrorStreak >= 3) {
+                        setVoiceStatus(statusEl, '🔄 Reconnecting voice service...');
+                    }
                     return;
                 }
 
-                statusEl.textContent = '⚠️ Voice service interrupted. Retrying...';
+                transientErrorStreak += 1;
+                setVoiceStatus(statusEl, '⚠️ Voice service interrupted. Retrying...');
             };
 
             recognition.onend = () => {
@@ -775,14 +796,15 @@
                     }
 
                     // Chrome can auto-stop after silence; restart while user keeps voice mode on.
-                    setTimeout(() => {
+                    const restartDelay = Math.min(250 + (transientErrorStreak * 200), 1800);
+                    restartTimer = setTimeout(() => {
                         if (!shouldKeepListening || isListening) return;
                         try {
                             recognition.start();
                         } catch (err) {
                             console.warn('Recognition restart skipped:', err);
                         }
-                    }, Math.min(150 * restartAttempts, 900));
+                    }, restartDelay);
                 } else {
                     stopVoice(btn, btnLabel, statusEl, textarea);
                 }
@@ -795,15 +817,20 @@
             isListening = false;
             shouldKeepListening = false;
             restartAttempts = 0;
+            transientErrorStreak = 0;
+            if (restartTimer) {
+                clearTimeout(restartTimer);
+                restartTimer = null;
+            }
             if (btn) {
                 btn.classList.remove('listening');
                 btnLabel.textContent = 'Speak';
                 btn.querySelector('.mic-icon').textContent = 'mic';
             }
             if (statusEl) {
-                statusEl.textContent = forcedMessage || (textarea && textarea.value.trim()
+                setVoiceStatus(statusEl, forcedMessage || (textarea && textarea.value.trim()
                     ? '✅ Voice input saved. You can edit the text above.'
-                    : '🎙 Click Speak to dictate your problem description');
+                    : '🎙 Click Speak to dictate your problem description'), true);
                 statusEl.classList.remove('active');
             }
             if (textarea) {
