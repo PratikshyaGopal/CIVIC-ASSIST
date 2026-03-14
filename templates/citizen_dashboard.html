@@ -670,6 +670,8 @@
         let recognition = null;
         let isListening = false;
         let shouldKeepListening = false;
+        let restartAttempts = 0;
+        const maxRestartAttempts = 6;
 
         function toggleVoiceInput() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -703,6 +705,7 @@
 
             recognition.onstart = () => {
                 isListening = true;
+                restartAttempts = 0;
                 btn.classList.add('listening');
                 btnLabel.textContent = 'Stop';
                 btn.querySelector('.mic-icon').textContent = 'mic_off';
@@ -724,6 +727,7 @@
                 // Append final words, show interim in-place
                 if (final) {
                     textarea.value = (textarea.value + final).trimStart();
+                    restartAttempts = 0;
                 }
                 textarea.placeholder = interim ? `...${interim}` : 'Describe the issue in detail, or click \'Speak\' to use your voice...';
             };
@@ -732,8 +736,7 @@
                 console.error('Speech recognition error:', e.error);
                 if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
                     shouldKeepListening = false;
-                    statusEl.textContent = '⚠️ Microphone access denied. Please allow microphone permissions.';
-                    stopVoice(btn, btnLabel, statusEl, textarea);
+                    stopVoice(btn, btnLabel, statusEl, textarea, '⚠️ Microphone access denied. Please allow microphone permissions.');
                     return;
                 }
 
@@ -743,13 +746,34 @@
                     return;
                 }
 
-                // Network/aborted/etc.: keep listening mode unless user explicitly stopped.
-                statusEl.textContent = '⚠️ Voice service interrupted, trying to continue...';
+                // aborted/audio-capture are frequently transient while restarting.
+                if (e.error === 'aborted' || e.error === 'audio-capture') {
+                    return;
+                }
+
+                if (e.error === 'network') {
+                    statusEl.textContent = '⚠️ Network issue with voice service. Retrying...';
+                    return;
+                }
+
+                statusEl.textContent = '⚠️ Voice service interrupted. Retrying...';
             };
 
             recognition.onend = () => {
                 isListening = false;
                 if (shouldKeepListening) {
+                    restartAttempts += 1;
+                    if (restartAttempts > maxRestartAttempts) {
+                        stopVoice(
+                            btn,
+                            btnLabel,
+                            statusEl,
+                            textarea,
+                            '⚠️ Voice service is unstable right now. Please click Speak again in a moment.'
+                        );
+                        return;
+                    }
+
                     // Chrome can auto-stop after silence; restart while user keeps voice mode on.
                     setTimeout(() => {
                         if (!shouldKeepListening || isListening) return;
@@ -758,7 +782,7 @@
                         } catch (err) {
                             console.warn('Recognition restart skipped:', err);
                         }
-                    }, 150);
+                    }, Math.min(150 * restartAttempts, 900));
                 } else {
                     stopVoice(btn, btnLabel, statusEl, textarea);
                 }
@@ -767,18 +791,19 @@
             recognition.start();
         }
 
-        function stopVoice(btn, btnLabel, statusEl, textarea) {
+        function stopVoice(btn, btnLabel, statusEl, textarea, forcedMessage = '') {
             isListening = false;
             shouldKeepListening = false;
+            restartAttempts = 0;
             if (btn) {
                 btn.classList.remove('listening');
                 btnLabel.textContent = 'Speak';
                 btn.querySelector('.mic-icon').textContent = 'mic';
             }
             if (statusEl) {
-                statusEl.textContent = textarea && textarea.value.trim()
+                statusEl.textContent = forcedMessage || (textarea && textarea.value.trim()
                     ? '✅ Voice input saved. You can edit the text above.'
-                    : '🎙 Click Speak to dictate your problem description';
+                    : '🎙 Click Speak to dictate your problem description');
                 statusEl.classList.remove('active');
             }
             if (textarea) {
