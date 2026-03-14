@@ -410,7 +410,8 @@
                                     </td>
                                     <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 max-w-xs truncate">
                                         {{ c.description[:80] }}{% if c.description|length > 80 %}...{% endif %}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{ c.created_at | format_date('%Y-%m-%d %H:%M') }}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{
+                                        c.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                                     <td class="px-6 py-4">
                                         <span
                                             class="px-3 py-1 text-xs font-bold rounded-full {% if c.status == 'Resolved' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-500{% elif c.status == 'In Progress' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-500{% elif c.status == 'Rejected' %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-500{% else %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-500{% endif %}">{{
@@ -600,8 +601,8 @@
                                     {% elif c.status == 'Rejected' %}bg-red-100 text-red-700
                                     {% else %}bg-yellow-100 text-yellow-700{% endif %}">{{ c.status }}</span>
                                 </div>
-                                <p class="text-xs text-slate-400 mb-2">{{ c.created_at | format_date('%B %d, %Y at %I:%M
-                                    %p') }}</p>
+                                <p class="text-xs text-slate-400 mb-2">{{ c.created_at.strftime('%B %d, %Y at %I:%M %p')
+                                    }}</p>
                                 {% if c.remarks %}
                                 <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 mt-2">
                                     <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Admin
@@ -668,6 +669,7 @@
         // ========== Voice-to-Text (Web Speech API) ==========
         let recognition = null;
         let isListening = false;
+        let shouldKeepListening = false;
 
         function toggleVoiceInput() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -678,23 +680,26 @@
 
             if (isListening) {
                 // Stop recording
+                shouldKeepListening = false;
                 recognition.stop();
                 return;
             }
 
             // Start recording
-            recognition = new SpeechRecognition();
-            recognition.lang = 'en-IN';        // Indian English — change to 'en-US' if preferred
-            recognition.continuous = true;      // Keep listening until stopped
-            recognition.interimResults = true;  // Show live transcription
+            // Reuse a single recognition instance so browser state is stable.
+            if (!recognition) {
+                recognition = new SpeechRecognition();
+                recognition.lang = 'en-IN';        // Indian English — change to 'en-US' if preferred
+                recognition.continuous = true;      // Keep listening until stopped
+                recognition.interimResults = true;  // Show live transcription
+            }
 
             const textarea = document.getElementById('complaint-description');
             const btn = document.getElementById('voice-btn');
             const btnLabel = document.getElementById('voice-btn-label');
             const statusEl = document.getElementById('voice-status');
 
-            let interimSpan = '';   // holds interim (in-progress) words
-            const savedText = textarea.value; // preserve any text already typed
+            shouldKeepListening = true;
 
             recognition.onstart = () => {
                 isListening = true;
@@ -718,24 +723,42 @@
                 }
                 // Append final words, show interim in-place
                 if (final) {
-                    textarea.value = savedText + final;
+                    textarea.value = (textarea.value + final).trimStart();
                 }
                 textarea.placeholder = interim ? `...${interim}` : 'Describe the issue in detail, or click \'Speak\' to use your voice...';
             };
 
             recognition.onerror = (e) => {
                 console.error('Speech recognition error:', e.error);
-                let msg = '⚠️ Error: ' + e.error;
-                if (e.error === 'not-allowed') msg = '⚠️ Microphone access denied. Please allow microphone permissions.';
-                if (e.error === 'no-speech') msg = '⚠️ No speech detected. Try again.';
-                statusEl.textContent = msg;
-                stopVoice(btn, btnLabel, statusEl, textarea);
+                if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                    shouldKeepListening = false;
+                    statusEl.textContent = '⚠️ Microphone access denied. Please allow microphone permissions.';
+                    stopVoice(btn, btnLabel, statusEl, textarea);
+                    return;
+                }
+
+                // no-speech is a common transient event; keep the session active.
+                if (e.error === 'no-speech') {
+                    statusEl.textContent = '🔴 Listening... no speech detected yet, try speaking louder.';
+                    return;
+                }
+
+                // Network/aborted/etc.: keep listening mode unless user explicitly stopped.
+                statusEl.textContent = '⚠️ Voice service interrupted, trying to continue...';
             };
 
             recognition.onend = () => {
-                if (isListening) {
-                    // Auto-restarted if still in listening mode (chrome stops after silence)
-                    recognition.start();
+                isListening = false;
+                if (shouldKeepListening) {
+                    // Chrome can auto-stop after silence; restart while user keeps voice mode on.
+                    setTimeout(() => {
+                        if (!shouldKeepListening || isListening) return;
+                        try {
+                            recognition.start();
+                        } catch (err) {
+                            console.warn('Recognition restart skipped:', err);
+                        }
+                    }, 150);
                 } else {
                     stopVoice(btn, btnLabel, statusEl, textarea);
                 }
@@ -746,6 +769,7 @@
 
         function stopVoice(btn, btnLabel, statusEl, textarea) {
             isListening = false;
+            shouldKeepListening = false;
             if (btn) {
                 btn.classList.remove('listening');
                 btnLabel.textContent = 'Speak';
@@ -786,8 +810,8 @@
         }
     </script>
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+        import { getAuth, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 
         const firebaseConfig = {{ firebase_web_config| tojson }};
         const app = initializeApp(firebaseConfig);
