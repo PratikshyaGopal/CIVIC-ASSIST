@@ -671,11 +671,13 @@
         let isListening = false;
         let shouldKeepListening = false;
         let restartAttempts = 0;
-        const maxRestartAttempts = 12;
+        const maxRestartAttempts = 60;
         let transientErrorStreak = 0;
         let lastStatusUpdateAt = 0;
         let restartTimer = null;
         let hadResultThisCycle = false;
+        let voiceSessionBaseText = '';
+        let voiceCommittedText = '';
 
         function setVoiceStatus(statusEl, message, force = false) {
             if (!statusEl) return;
@@ -703,7 +705,7 @@
             // Reuse a single recognition instance so browser state is stable.
             if (!recognition) {
                 recognition = new SpeechRecognition();
-                recognition.lang = 'en-IN';        // Indian English — change to 'en-US' if preferred
+                recognition.lang = (navigator.language || 'en-US');
                 recognition.continuous = true;      // Keep listening until stopped
                 recognition.interimResults = true;  // Show live transcription
             }
@@ -714,6 +716,8 @@
             const statusEl = document.getElementById('voice-status');
 
             shouldKeepListening = true;
+            voiceSessionBaseText = textarea ? textarea.value.trim() : '';
+            voiceCommittedText = '';
 
             recognition.onstart = () => {
                 isListening = true;
@@ -731,11 +735,11 @@
 
             recognition.onresult = (event) => {
                 let interim = '';
-                let final = '';
+                let finalChunk = '';
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const transcript = event.results[i][0].transcript;
                     if (event.results[i].isFinal) {
-                        final += transcript + ' ';
+                        finalChunk += transcript + ' ';
                     } else {
                         interim += transcript;
                     }
@@ -744,10 +748,20 @@
                 hadResultThisCycle = true;
 
                 // Append final words, show interim in-place
-                if (final) {
-                    textarea.value = (textarea.value + final).trimStart();
+                if (finalChunk) {
+                    voiceCommittedText = (voiceCommittedText + finalChunk).replace(/\s+/g, ' ').trim();
                     restartAttempts = 0;
                     transientErrorStreak = 0;
+                }
+
+                const liveText = [voiceSessionBaseText, voiceCommittedText, interim]
+                    .filter(Boolean)
+                    .join(' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                if (textarea && liveText) {
+                    textarea.value = liveText;
                 }
 
                 // Show live interim transcript in status so users can see speech is being captured.
@@ -768,22 +782,18 @@
 
                 // no-speech is a common transient event; keep the session active.
                 if (e.error === 'no-speech') {
-                    transientErrorStreak += 1;
+                    transientErrorStreak = Math.min(transientErrorStreak + 1, 10);
                     setVoiceStatus(statusEl, '🔴 Listening... no speech detected yet, try speaking louder.');
                     return;
                 }
 
                 // aborted/audio-capture are frequently transient while restarting.
                 if (e.error === 'aborted' || e.error === 'audio-capture') {
-                    transientErrorStreak += 1;
                     return;
                 }
 
                 if (e.error === 'network') {
-                    transientErrorStreak += 1;
-                    if (transientErrorStreak >= 3) {
-                        setVoiceStatus(statusEl, '🔄 Reconnecting voice service...');
-                    }
+                    setVoiceStatus(statusEl, '🔄 Reconnecting voice service...');
                     return;
                 }
 
@@ -829,6 +839,8 @@
             shouldKeepListening = false;
             restartAttempts = 0;
             transientErrorStreak = 0;
+            voiceSessionBaseText = '';
+            voiceCommittedText = '';
             if (restartTimer) {
                 clearTimeout(restartTimer);
                 restartTimer = null;
