@@ -148,6 +148,9 @@ def _rtdb_get(path):
             ref = firebase_db.reference(path)
             return ref.get()
         # Fallback: REST API
+        if http_requests is None:
+            app.logger.error('RTDB GET %s failed: requests package is not installed.', path)
+            return None
         resp = http_requests.get(_rtdb_url(path), timeout=10)
         resp.raise_for_status()
         return resp.json()
@@ -163,6 +166,9 @@ def _rtdb_set(path, data):
             ref = firebase_db.reference(path)
             ref.set(data)
             return True
+        if http_requests is None:
+            app.logger.error('RTDB SET %s failed: requests package is not installed.', path)
+            return False
         resp = http_requests.put(_rtdb_url(path), json=data, timeout=10)
         resp.raise_for_status()
         return True
@@ -178,6 +184,9 @@ def _rtdb_update(path, data):
             ref = firebase_db.reference(path)
             ref.update(data)
             return True
+        if http_requests is None:
+            app.logger.error('RTDB UPDATE %s failed: requests package is not installed.', path)
+            return False
         resp = http_requests.patch(_rtdb_url(path), json=data, timeout=10)
         resp.raise_for_status()
         return True
@@ -193,6 +202,9 @@ def _rtdb_push(path, data):
             ref = firebase_db.reference(path)
             new_ref = ref.push(data)
             return new_ref.key
+        if http_requests is None:
+            app.logger.error('RTDB PUSH %s failed: requests package is not installed.', path)
+            return None
         resp = http_requests.post(_rtdb_url(path), json=data, timeout=10)
         resp.raise_for_status()
         return resp.json().get('name')
@@ -208,6 +220,9 @@ def _rtdb_delete(path):
             ref = firebase_db.reference(path)
             ref.delete()
             return True
+        if http_requests is None:
+            app.logger.error('RTDB DELETE %s failed: requests package is not installed.', path)
+            return False
         resp = http_requests.delete(_rtdb_url(path), timeout=10)
         resp.raise_for_status()
         return True
@@ -858,7 +873,8 @@ def admin_register():
             'name': name,
             'email': email,
             'phone': request.form.get('phone', ''),
-            'address': request.form.get('department', ''),
+            'address': request.form.get('address', ''),
+            'department': request.form.get('department', ''),
             'is_admin': True,
         })
 
