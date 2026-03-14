@@ -675,6 +675,7 @@
         let transientErrorStreak = 0;
         let lastStatusUpdateAt = 0;
         let restartTimer = null;
+        let hadResultThisCycle = false;
 
         function setVoiceStatus(statusEl, message, force = false) {
             if (!statusEl) return;
@@ -716,6 +717,7 @@
 
             recognition.onstart = () => {
                 isListening = true;
+                hadResultThisCycle = false;
                 if (restartTimer) {
                     clearTimeout(restartTimer);
                     restartTimer = null;
@@ -738,12 +740,21 @@
                         interim += transcript;
                     }
                 }
+
+                hadResultThisCycle = true;
+
                 // Append final words, show interim in-place
                 if (final) {
                     textarea.value = (textarea.value + final).trimStart();
                     restartAttempts = 0;
                     transientErrorStreak = 0;
                 }
+
+                // Show live interim transcript in status so users can see speech is being captured.
+                if (interim) {
+                    setVoiceStatus(statusEl, `🔴 Listening... ${interim}`);
+                }
+
                 textarea.placeholder = interim ? `...${interim}` : 'Describe the issue in detail, or click \'Speak\' to use your voice...';
             };
 
@@ -783,7 +794,7 @@
             recognition.onend = () => {
                 isListening = false;
                 if (shouldKeepListening) {
-                    restartAttempts += 1;
+                    restartAttempts = hadResultThisCycle ? 0 : restartAttempts + 1;
                     if (restartAttempts > maxRestartAttempts) {
                         stopVoice(
                             btn,
