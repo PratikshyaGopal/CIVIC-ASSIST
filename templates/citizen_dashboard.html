@@ -410,8 +410,8 @@
                                     </td>
                                     <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400 max-w-xs truncate">
                                         {{ c.description[:80] }}{% if c.description|length > 80 %}...{% endif %}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{{
-                                        c.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                                        {{ c.created_at | format_date('%Y-%m-%d %H:%M') }}</td>
                                     <td class="px-6 py-4">
                                         <span
                                             class="px-3 py-1 text-xs font-bold rounded-full {% if c.status == 'Resolved' %}bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-500{% elif c.status == 'In Progress' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-500{% elif c.status == 'Rejected' %}bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-500{% else %}bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-500{% endif %}">{{
@@ -801,8 +801,7 @@
                 setVoiceStatus(statusEl, '⚠️ Voice service interrupted. Retrying...');
             };
 
-            recognition.onend = () => {
-                isListening = false;
+            recognition.onend  tening = false;
                 if (shouldKeepListening) {
                     restartAttempts = hadResultThisCycle ? 0 : restartAttempts + 1;
                     if (restartAttempts > maxRestartAttempts) {
@@ -819,7 +818,7 @@
                     // Chrome can auto-stop after silence; restart while user keeps voice mode on.
                     const restartDelay = Math.min(250 + (transientErrorStreak * 200), 1800);
                     restartTimer = setTimeout(() => {
-                        if (!shouldKeepListening || isListening) return;
+             if (!shouldKeepListening || isListening) return;
                         try {
                             recognition.start();
                         } catch (err) {
