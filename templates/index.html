@@ -70,6 +70,10 @@
                     Citizen Login
                 </a>
                 <a class="px-5 py-2 text-sm font-bold rounded-lg bg-primary text-white hover:bg-blue-600 transition-all shadow-sm"
+                    href="{{ url_for('citizen_register') }}">
+                    Register
+                </a>
+                <a class="px-5 py-2 text-sm font-bold rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                     href="{{ url_for('admin_login') }}">
                     Admin Portal
                 </a>
@@ -108,8 +112,8 @@
                     <div class="flex flex-wrap gap-4">
                         <a class="px-8 py-4 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
                             href="{{ url_for('citizen_register') }}">
-                            <span class="material-symbols-outlined">report_problem</span>
-                            Report an Issue
+                            <span class="material-symbols-outlined">person_add</span>
+                            Register as Citizen
                         </a>
                         <button
                             class="px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all">
