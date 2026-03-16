@@ -45,6 +45,9 @@ app.secret_key = os.getenv(
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+# On Vercel (HTTPS) enforce Secure flag so session cookie is never sent over plain HTTP.
+if os.getenv('VERCEL'):
+    app.config['SESSION_COOKIE_SECURE'] = True
 
 # Firebase Web SDK Configuration (used by templates)
 DEFAULT_FIREBASE_WEB_CONFIG = {
@@ -421,7 +424,8 @@ _FIREBASE_JWKS_URL = (
     'https://www.googleapis.com/service_accounts/v1/jwk/'
     'securetoken@system.gserviceaccount.com'
 )
-_FIREBASE_PROJECT_ID = app.config.get('FIREBASE_WEB_CONFIG', {}).get('projectId', '')
+# NOTE: Do NOT read projectId at module load time — config may not be fully populated yet.
+# We resolve it lazily inside _verify_firebase_id_token_jwks().
 
 
 def _get_firebase_jwks():
@@ -464,7 +468,11 @@ def _verify_firebase_id_token_jwks(id_token):
     if not public_key:
         raise ValueError('Firebase public key not found for kid: ' + str(kid))
 
-    project_id = _FIREBASE_PROJECT_ID or os.getenv('FIREBASE_PROJECT_ID', '')
+    # Resolve project ID lazily so it always reads the live config value.
+    project_id = (
+        app.config.get('FIREBASE_WEB_CONFIG', {}).get('projectId', '')
+        or os.getenv('FIREBASE_PROJECT_ID', '')
+    )
     payload = pyjwt.decode(
         id_token,
         public_key,
@@ -773,7 +781,13 @@ def register_complaint():
                 file.save(full_path)
                 image_path = f"uploads/{unique_name}"
             except OSError:
-                pass  # Read-only filesystem on Vercel — skip image, save complaint anyway
+                # Vercel has a read-only filesystem — image cannot be saved.
+                # Inform the citizen so they're not confused about the missing photo.
+                flash(
+                    'Image upload is not available in the hosted version. '
+                    'Your complaint was still submitted successfully.',
+                    'warning'
+                )
 
     complaint_dict = {
         'user_id': session['user_id'],
