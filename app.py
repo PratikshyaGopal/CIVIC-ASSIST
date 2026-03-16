@@ -1302,7 +1302,10 @@ def seed_default_admin():
     print(f"Default admin created with ID: {admin_id}")
 
 
+# Seed default admin at module load time so it runs under any WSGI server
+# (Vercel, Gunicorn, Waitress) — not just when running "python app.py" directly.
+ensure_firebase_admin_initialized()
+seed_default_admin()
+
 if __name__ == '__main__':
-    ensure_firebase_admin_initialized()
-    seed_default_admin()
     app.run(debug=True)
