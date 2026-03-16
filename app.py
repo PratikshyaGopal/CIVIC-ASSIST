@@ -555,6 +555,15 @@ def set_security_headers(response):
     return response
 
 
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    """Handle file-too-large uploads gracefully."""
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'error': 'File is too large. Maximum allowed size is 5 MB.'}), 413
+    flash('The uploaded file is too large. Maximum allowed size is 5 MB.', 'danger')
+    return redirect(request.referrer or url_for('citizen_dashboard'))
+
+
 # ==================== ROUTES ====================
 
 @app.context_processor
@@ -1166,6 +1175,97 @@ def view_complaint(complaint_id):
         flash('Complaint not found.', 'danger')
         return redirect(url_for('index'))
     return render_template('complaint_detail.html', complaint=complaint)
+
+
+# --- NLP ANALYSIS (admin) ---
+
+# Simple keyword → department mapping (no heavy ML required)
+_NLP_KEYWORD_MAP = {
+    'Sanitation': ['garbage', 'waste', 'trash', 'litter', 'drain', 'sewage', 'sewer',
+                   'stink', 'smell', 'dirty', 'filth', 'sanitation', 'compost'],
+    'Roads & Traffic': ['road', 'pothole', 'traffic', 'signal', 'crack', 'street',
+                        'pavement', 'footpath', 'sidewalk', 'lane', 'highway', 'bridge'],
+    'Water Supply': ['water', 'pipe', 'leak', 'leakage', 'tap', 'supply', 'flood',
+                     'waterlog', 'overflow', 'contaminate', 'shortage', 'pump'],
+    'Electricity': ['electricity', 'electric', 'light', 'power', 'wire', 'pole',
+                    'streetlight', 'transformer', 'outage', 'blackout', 'voltage'],
+    'Public Health': ['health', 'hospital', 'clinic', 'disease', 'mosquito', 'dengue',
+                      'malaria', 'flu', 'covid', 'pandemic', 'sanitary', 'hygiene'],
+}
+
+_NEGATIVE_WORDS = {'broken', 'damaged', 'dirty', 'dangerous', 'urgent', 'bad', 'worst',
+                   'terrible', 'horrible', 'disgusting', 'unacceptable', 'severe',
+                   'immediate', 'overflowing', 'blocked', 'leaking', 'crack', 'pothole',
+                   'smell', 'stink', 'dead', 'flooding', 'contaminated'}
+
+_POSITIVE_WORDS = {'good', 'great', 'excellent', 'clean', 'resolved', 'fixed', 'ok',
+                   'better', 'improved', 'nice', 'working', 'repaired'}
+
+_STOP_WORDS = {'the', 'is', 'in', 'it', 'and', 'a', 'an', 'of', 'to', 'for', 'on',
+               'at', 'by', 'we', 'our', 'my', 'this', 'that', 'are', 'was', 'with',
+               'there', 'has', 'have', 'be', 'been', 'not', 'no', 'very', 'also',
+               'from', 'but', 'its', 'they', 'their', 'near', 'since', 'i', 'im'}
+
+
+def _nlp_analyze_text(text):
+    """Keyword extraction, department suggestion, and sentiment on complaint text."""
+    words = re.findall(r'[a-z]+', (text or '').lower())
+    # Frequency count (ignore stop words, single chars)
+    freq = {}
+    for w in words:
+        if w not in _STOP_WORDS and len(w) > 2:
+            freq[w] = freq.get(w, 0) + 1
+
+    # Top keywords
+    keywords = sorted(freq, key=freq.get, reverse=True)[:10]
+
+    # Department suggestion
+    dept_scores = {}
+    for dept, kws in _NLP_KEYWORD_MAP.items():
+        score = sum(freq.get(k, 0) for k in kws)
+        if score:
+            dept_scores[dept] = score
+    suggested_dept = max(dept_scores, key=dept_scores.get) if dept_scores else 'Unassigned'
+
+    # Simple sentiment
+    neg = sum(1 for w in words if w in _NEGATIVE_WORDS)
+    pos = sum(1 for w in words if w in _POSITIVE_WORDS)
+    if neg > pos:
+        sentiment = 'Negative'
+    elif pos > neg:
+        sentiment = 'Positive'
+    else:
+        sentiment = 'Neutral'
+
+    return {
+        'keywords': keywords,
+        'suggested_department': suggested_dept,
+        'sentiment': sentiment,
+        'word_count': len(words),
+    }
+
+
+@app.route('/admin/nlp_analyze', methods=['POST'])
+def admin_nlp_analyze():
+    if not session.get('is_admin'):
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json(silent=True) or {}
+    complaint_id = (data.get('complaint_id') or '').strip()
+    description = (data.get('description') or '').strip()
+
+    # Prefer fetching description from DB if complaint_id given
+    if complaint_id:
+        complaint = get_complaint_by_id(complaint_id)
+        if not complaint:
+            return jsonify({'error': 'Complaint not found.'}), 404
+        description = complaint.get('description', '')
+
+    if not description:
+        return jsonify({'error': 'No description text to analyze.'}), 400
+
+    result = _nlp_analyze_text(description)
+    return jsonify(result), 200
 
 
 # ==================== INITIALIZATION ====================

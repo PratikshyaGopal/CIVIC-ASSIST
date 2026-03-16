@@ -3,13 +3,16 @@
 <html class="light" lang="en">
 
 <head>
+<!DOCTYPE html>
+
+<html class="light" lang="en">
+
+<head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>Citizen Login | CivicAssist</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&amp;display=swap"
-        rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap"
         rel="stylesheet" />
     <link
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
@@ -52,14 +55,14 @@
                     CivicAssist</h2>
             </div>
             <div class="flex gap-4">
-                <button
+                <a href="{{ url_for('admin_login') }}"
                     class="hidden md:flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary/10 text-primary text-sm font-bold">
-                    <span>Municipal Login</span>
-                </button>
-                <button
+                    <span>Admin Login</span>
+                </a>
+                <a href="{{ url_for('index') }}"
                     class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold">
-                    <span>Help</span>
-                </button>
+                    <span>Home</span>
+                </a>
             </div>
         </header>
         <!-- Main Content Area -->
@@ -130,27 +133,6 @@
                         <button id="login-submit-btn"
                             class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                             type="submit">
-                            <span>Sign In</span>
-                            <span class="material-symbols-outlined text-lg">arrow_forward</span>
-                        </button>
-                    </form>
-                    <!-- Registration Link -->
-                    <div class="mt-8 pt-6 border-t border-[#e7edf3] dark:border-slate-800 text-center">
-                        <p class="text-[#4c739a] dark:text-slate-400 text-sm">
-                            New to CivicAssist?
-                            <a class="text-primary font-bold hover:underline ml-1"
-                                href="{{ url_for('citizen_register') }}">Register here</a>
-                        </p>
-                    </div>
-                    <div class="mt-8 pt-6 border-t border-[#e7edf3] dark:border-slate-800 text-center">
-                        </p>
-                    </div>
-                </div>
-                <!-- Trust Footer Inside Card -->
-                <div
-                    class="bg-slate-50 dark:bg-background-dark/30 px-8 py-4 flex items-center justify-center gap-4 border-t border-[#e7edf3] dark:border-slate-800">
-                    <div class="flex items-center gap-1.5 grayscale opacity-60">
-                        <span class="material-symbols-outlined text-sm">verified_user</span>
                         <span class="text-[10px] uppercase tracking-widest font-bold">Secure Portal</span>
                     </div>
                     <div class="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>

@@ -15,9 +15,6 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
         rel="stylesheet" />
-    <link
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
-        rel="stylesheet" />
     <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
@@ -98,9 +95,8 @@
             </nav>
             <div class="p-4 border-t border-slate-200 dark:border-slate-800">
                 <div class="flex items-center gap-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                    <img alt="Profile" class="w-8 h-8 rounded-full bg-slate-200"
-                        data-alt="Admin user profile avatar thumbnail"
-                        src="https://lh3.googleusercontent.com/aida-public/AB6AXuDeVGj65N2xHfnNSiL2OwVy_6MGqo5PdBcK8QdaNa71ASmNhnL04CVL7rU6iD9kPu9H_CFYPRPhbQKq3vOLrWPVJdWZs70G-40Jx9WriEJbfvD7IvuUJ4QrEi92YHiUx8YqrHsZe2TwLt1fyWKHdaO7p5JsXg3RM-gl3m94IJcgmTn4JnJYUYiX9vNR0HTV9Qzzzf60CSOqq3F1cqFK-twNRisWYbJLhNM6W_f2QQUolLieJ2GKtI--G2UPQXFhIH-YVWVBIyG3OnE" />
+                    <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                        {{ admin.name[:2]|upper if admin else 'AD' }}</div>
                     <div class="overflow-hidden">
                         <p class="text-sm font-semibold truncate">{{ admin.name if admin else 'Admin' }}</p>
                         <p class="text-xs text-slate-500 truncate">{{ admin.email if admin else 'admin@civic.local' }}
@@ -300,6 +296,11 @@
                                                 title="Update Complaint">
                                                 <span class="material-symbols-outlined text-xl">edit_square</span>
                                             </button>
+                                            <button data-complaint-id="{{ c.id }}"
+                                                class="nlp-btn p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                                title="NLP Analysis">
+                                                <span class="material-symbols-outlined text-xl">psychology</span>
+                                            </button>
                                             <a href="{{ url_for('view_complaint', complaint_id=c.id) }}"
                                                 class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
                                                 title="View Details">
@@ -447,7 +448,51 @@
             </form>
         </div>
     </div>
+    <!-- NLP Analysis Modal -->
+    <div id="nlpModal" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-8 border border-slate-200 dark:border-slate-800">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-purple-600">psychology</span> NLP Analysis
+                </h3>
+                <button onclick="document.getElementById('nlpModal').style.display='none'" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+            </div>
+            <div id="nlpContent" class="space-y-4">
+                <p class="text-slate-400 text-sm">Loading...</p>
+            </div>
+        </div>
+    </div>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        // NLP Button handler
+        document.addEventListener('click', function (e) {
+            var btn = e.target.closest('.nlp-btn');
+            if (!btn) return;
+            var id = btn.dataset.complaintId;
+            var modal = document.getElementById('nlpModal');
+            var content = document.getElementById('nlpContent');
+            content.innerHTML = '<p class="text-slate-400 text-sm">Analyzing...</p>';
+            modal.style.display = 'flex';
+            fetch('/admin/nlp_analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ complaint_id: id })
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (data.error) {
+                    content.innerHTML = '<p class="text-red-500 text-sm">' + data.error + '</p>'; return;
+                }
+                var sentColor = data.sentiment === 'Negative' ? 'bg-red-100 text-red-700' : data.sentiment === 'Positive' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+                var kwHtml = data.keywords.length ? data.keywords.map(function(k){return '<span class="bg-purple-100 text-purple-700 rounded-full px-2 py-0.5 text-xs font-medium">'+k+'</span>';}).join(' ') : '<span class="text-slate-400 text-xs">No keywords found</span>';
+                content.innerHTML =
+                    '<div><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Keywords</p><div class="flex flex-wrap gap-1">' + kwHtml + '</div></div>' +
+                    '<div class="flex gap-4 mt-2"><div><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Suggested Department</p><span class="bg-blue-100 text-blue-700 rounded-lg px-3 py-1 text-sm font-medium">' + data.suggested_department + '</span></div>' +
+                    '<div><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Sentiment</p><span class="rounded-lg px-3 py-1 text-sm font-medium ' + sentColor + '">' + data.sentiment + '</span></div></div>' +
+                    '<p class="text-xs text-slate-400">Word count: ' + data.word_count + '</p>';
+            }).catch(function () {
+                content.innerHTML = '<p class="text-red-500 text-sm">Failed to connect to analysis service.</p>';
+            });
+        });
+    </script>
     <script>
         function filterTable() {
             var search = (document.getElementById('searchInput').value || '').toLowerCase();
