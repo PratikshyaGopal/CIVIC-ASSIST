@@ -1,14 +1,14 @@
 {
   "version": 2,
   "functions": {
-    "wsgi.py": {
+    "api/index.py": {
       "maxDuration": 30
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/wsgi.py"
+      "destination": "/api/index.py"
     }
   ]
 }
