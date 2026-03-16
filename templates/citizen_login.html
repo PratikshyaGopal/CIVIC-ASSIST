@@ -3,11 +3,6 @@
 <html class="light" lang="en">
 
 <head>
-<!DOCTYPE html>
-
-<html class="light" lang="en">
-
-<head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>Citizen Login | CivicAssist</title>
@@ -41,6 +36,7 @@
         }
     </script>
 </head>
+
 <body
     class="font-display bg-background-light dark:bg-background-dark text-[#0d141b] dark:text-slate-50 min-h-screen flex flex-col">
     <div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
@@ -133,13 +129,19 @@
                         <button id="login-submit-btn"
                             class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-lg shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2"
                             type="submit">
-                        <span class="text-[10px] uppercase tracking-widest font-bold">Secure Portal</span>
-                    </div>
-                    <div class="h-4 w-px bg-slate-300 dark:bg-slate-700"></div>
-                    <div class="flex items-center gap-1.5 grayscale opacity-60">
-                        <span class="material-symbols-outlined text-sm">gavel</span>
-                        <span class="text-[10px] uppercase tracking-widest font-bold">Privacy Policy</span>
-                    </div>
+                            <span class="material-symbols-outlined text-lg">login</span>
+                            <span class="font-bold">Login to Your Account</span>
+                        </button>
+                        <div class="text-center mt-4">
+                            <p class="text-sm text-[#4c739a] dark:text-slate-400">
+                                Don't have an account?
+                                <a href="{{ url_for('citizen_register') }}"
+                                    class="text-primary font-semibold hover:underline">
+                                    Register your account
+                                </a>
+                            </p>
+                        </div>
+                    </form>
                 </div>
             </div>
         </main>
