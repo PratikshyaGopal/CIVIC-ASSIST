@@ -243,6 +243,32 @@
             }
         });
     </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const passwordInputs = document.querySelectorAll('input[type="password"]');
+            passwordInputs.forEach(input => {
+                const wrapper = input.closest('.relative');
+                if (wrapper) {
+                    const toggleBtn = wrapper.querySelector('button');
+                    if (toggleBtn) {
+                        const icon = toggleBtn.querySelector('.material-symbols-outlined');
+                        if (icon && (icon.textContent.trim() === 'visibility' || icon.textContent.trim() === 'visibility_off')) {
+                            toggleBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                if (input.type === 'password') {
+                                    input.type = 'text';
+                                    icon.textContent = 'visibility_off';
+                                } else {
+                                    input.type = 'password';
+                                    icon.textContent = 'visibility';
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+        });
+    </script>
 </body>
 
 </html>

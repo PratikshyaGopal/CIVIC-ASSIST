@@ -141,7 +141,12 @@
                 </div>
                 {% endif %}
                 {% endwith %}
-                <form method="post" action="{{ url_for('admin_register') }}" class="space-y-5">
+                <form method="post" action="{{ url_for('admin_register') }}" class="space-y-5" onsubmit="
+                    const btn = this.querySelector('button[type=submit]');
+                    btn.disabled = true;
+                    btn.classList.add('opacity-70', 'cursor-not-allowed');
+                    btn.innerHTML = '<span class=\'material-symbols-outlined text-xl animate-spin\'>progress_activity</span> Registering...';
+                ">
                     <!-- Full Name -->
                     <div>
                         <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Full
@@ -268,6 +273,32 @@
             <a class="hover:text-primary" href="#">Legal Disclosure</a>
         </div>
     </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const passwordInputs = document.querySelectorAll('input[type="password"]');
+            passwordInputs.forEach(input => {
+                const wrapper = input.closest('.relative');
+                if (wrapper) {
+                    const toggleBtn = wrapper.querySelector('button');
+                    if (toggleBtn) {
+                        const icon = toggleBtn.querySelector('.material-symbols-outlined');
+                        if (icon && (icon.textContent.trim() === 'visibility' || icon.textContent.trim() === 'visibility_off')) {
+                            toggleBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                if (input.type === 'password') {
+                                    input.type = 'text';
+                                    icon.textContent = 'visibility_off';
+                                } else {
+                                    input.type = 'password';
+                                    icon.textContent = 'visibility';
+                                }
+                            });
+                        }
+                    }
+                }
+            });
+        });
+    </script>
 </body>
 
 </html>
