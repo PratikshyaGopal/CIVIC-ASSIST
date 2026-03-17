@@ -1081,9 +1081,8 @@ def delete_user(user_id):
     if not user:
         flash('User not found.', 'danger')
         return redirect(url_for('admin_users'))
-    if user.get('is_admin'):
-        flash('Cannot delete admin accounts from here.', 'warning')
-        return redirect(url_for('admin_users'))
+    # Admins can now be deleted from here
+
 
     delete_complaints_by_user(user_id)
     delete_user_data(user_id)
