@@ -111,10 +111,10 @@
                             <span class="material-symbols-outlined">person_add</span>
                             Register as Citizen
                         </a>
-                        <button
-                            class="px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all">
+                        <a
+                            class="px-8 py-4 bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all text-center" href="{{ url_for('citizen_dashboard') }}">
                             View Live Map
-                        </button>
+                        </a>
                     </div>
                 </div>
                 <div class="relative group">
@@ -260,10 +260,10 @@
                             href="{{ url_for('admin_login') }}">
                             Admin Login
                         </a>
-                        <button
-                            class="px-8 py-4 bg-blue-600 text-white border border-blue-400 font-bold rounded-xl hover:bg-blue-700 transition-all">
+                        <a
+                            class="px-8 py-4 bg-blue-600 text-white border border-blue-400 font-bold rounded-xl hover:bg-blue-700 transition-all text-center" href="{{ url_for('admin_register') }}">
                             Partner with Us
-                        </button>
+                        </a>
                     </div>
                 </div>
             </div>
