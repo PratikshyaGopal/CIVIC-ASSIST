@@ -322,12 +322,20 @@ def _all_workers():
 
 def get_all_workers(available_only=False):
     workers = []
+    all_comps = _all_complaints()
     for wid, w in _all_workers().items():
         if not isinstance(w, dict):
             continue
         w['id'] = wid
         if available_only and not w.get('is_available', True):
             continue
+        # Count assignments
+        worker_comps = []
+        for cid, c in all_comps.items():
+            if isinstance(c, dict) and str(c.get('worker_id', '')) == str(wid):
+                c['id'] = cid
+                worker_comps.append(c)
+        w['assignments'] = worker_comps
         workers.append(w)
     # Sort by name
     workers.sort(key=lambda x: x.get('name', ''))
@@ -1308,4 +1316,5 @@ ensure_firebase_admin_initialized()
 seed_default_admin()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)

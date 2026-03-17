@@ -206,7 +206,7 @@
                                                         %}pause_circle{% else %}play_circle{% endif %}</span>
                                                 </button>
                                             </form>
-                                            <form method="post" action="{{ url_for('delete_worker', worker_id=w.id) }}"
+                                            <form method="post" action="{{ url_for('delete_worker_route', worker_id=w.id) }}"
                                                 onsubmit="return confirm('Delete worker &quot;{{ w.name }}&quot;?');"
                                                 style="display:inline">
                                                 <button type="submit"
