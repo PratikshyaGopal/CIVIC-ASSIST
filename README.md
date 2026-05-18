@@ -79,6 +79,34 @@ The project also integrates AI-based NLP techniques for analyzing user feedback 
 
 ---
 
+# 🖼️ Screenshots
+Real application screenshots are included in the `screenshots/` folder and displayed below.
+
+<table style="width:100%; table-layout:fixed;">
+  <tr>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/homepage.png" alt="CIVIC-ASSIST Homepage" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Homepage</p>
+    </td>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/complaint-form.png" alt="Citizen Registration" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Citizen Registration</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/admin-login.png" alt="Admin Login" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Admin Login</p>
+    </td>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/admin-registration.png" alt="Admin Registration" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Admin Registration</p>
+    </td>
+  </tr>
+</table>
+
+---
+
 # 📂 Project Structure
 
 ```text
