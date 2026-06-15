@@ -137,6 +137,173 @@ def ensure_firebase_admin_initialized():
 # All data is stored without auth rules check (public read+write) or you should
 # configure RTDB rules on the Firebase console to secure it.
 
+# ==================== LOCAL DATABASE FALLBACK ====================
+LOCAL_DB_PATH = os.path.join('instance', 'local_db.json')
+_use_local_db_fallback = False
+_write_test_done = False
+
+def load_local_db():
+    if not os.path.exists('instance'):
+        try:
+            os.makedirs('instance')
+        except OSError:
+            pass
+    if os.path.exists(LOCAL_DB_PATH):
+        try:
+            with open(LOCAL_DB_PATH, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    
+    # Try to seed from public RTDB
+    try:
+        if http_requests is not None:
+            resp = http_requests.get("https://civicassist-39685-default-rtdb.asia-southeast1.firebasedatabase.app/.json", timeout=5)
+            if resp.status_code == 200 and resp.json():
+                data = resp.json()
+                save_local_db(data)
+                return data
+    except Exception:
+        pass
+        
+    initial = {"users": {}, "complaints": {}, "workers": {}}
+    save_local_db(initial)
+    return initial
+
+def save_local_db(data):
+    try:
+        with open(LOCAL_DB_PATH, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+    except Exception as exc:
+        app.logger.error("Failed to save local db: %s", exc)
+
+def _parse_path(path):
+    return [p for p in path.strip('/').split('/') if p]
+
+def _local_rtdb_get(path):
+    db_data = load_local_db()
+    keys = _parse_path(path)
+    curr = db_data
+    for k in keys:
+        if isinstance(curr, dict) and k in curr:
+            curr = curr[k]
+        else:
+            return None
+    return curr
+
+def _local_rtdb_set(path, data):
+    db_data = load_local_db()
+    keys = _parse_path(path)
+    if not keys:
+        save_local_db(data)
+        return True
+    
+    curr = db_data
+    for k in keys[:-1]:
+        if not isinstance(curr, dict):
+            return False
+        if k not in curr or not isinstance(curr[k], dict):
+            curr[k] = {}
+        curr = curr[k]
+    
+    if isinstance(curr, dict):
+        curr[keys[-1]] = data
+        save_local_db(db_data)
+        return True
+    return False
+
+def _local_rtdb_update(path, data):
+    db_data = load_local_db()
+    keys = _parse_path(path)
+    if not keys:
+        if isinstance(db_data, dict) and isinstance(data, dict):
+            db_data.update(data)
+            save_local_db(db_data)
+            return True
+        return False
+    
+    curr = db_data
+    for k in keys[:-1]:
+        if not isinstance(curr, dict):
+            return False
+        if k not in curr or not isinstance(curr[k], dict):
+            curr[k] = {}
+        curr = curr[k]
+        
+    last_key = keys[-1]
+    if not isinstance(curr, dict):
+        return False
+    if last_key not in curr or not isinstance(curr[last_key], dict):
+        curr[last_key] = {}
+    
+    if isinstance(curr[last_key], dict) and isinstance(data, dict):
+        curr[last_key].update(data)
+        for k, v in list(data.items()):
+            if v is None:
+                curr[last_key].pop(k, None)
+    else:
+        curr[last_key] = data
+        
+    save_local_db(db_data)
+    return True
+
+def _local_rtdb_push(path, data):
+    new_key = f"-Local{str(uuid.uuid4()).replace('-', '')[:15]}"
+    full_path = f"{path.rstrip('/')}/{new_key}"
+    if _local_rtdb_set(full_path, data):
+        return new_key
+    return None
+
+def _local_rtdb_delete(path):
+    db_data = load_local_db()
+    keys = _parse_path(path)
+    if not keys:
+        save_local_db({})
+        return True
+        
+    curr = db_data
+    for k in keys[:-1]:
+        if isinstance(curr, dict) and k in curr:
+            curr = curr[k]
+        else:
+            return True
+            
+    if isinstance(curr, dict):
+        curr.pop(keys[-1], None)
+    save_local_db(db_data)
+    return True
+
+def _check_db_writability():
+    global _use_local_db_fallback, _write_test_done
+    if _write_test_done:
+        return
+        
+    if firebase_admin and firebase_admin._apps and firebase_db and _rtdb_initialized:
+        _use_local_db_fallback = False
+        _write_test_done = True
+        return
+
+    if http_requests is None:
+        _use_local_db_fallback = True
+        _write_test_done = True
+        return
+
+    try:
+        url = _rtdb_url('_write_test')
+        resp = http_requests.put(url, json={"timestamp": datetime.utcnow().isoformat()}, timeout=3)
+        if resp.status_code == 200:
+            _use_local_db_fallback = False
+            http_requests.delete(url, timeout=3)
+        else:
+            app.logger.warning("Cloud database write test failed (status %d), using local JSON DB.", resp.status_code)
+            _use_local_db_fallback = True
+    except Exception as exc:
+        app.logger.warning("Cloud database write test failed (%s), using local JSON DB.", exc)
+        _use_local_db_fallback = True
+        
+    _write_test_done = True
+
+
 def _rtdb_url(path):
     """Build the full REST URL for a given RTDB path."""
     base = FIREBASE_DB_URL.rstrip('/')
@@ -145,9 +312,12 @@ def _rtdb_url(path):
 
 def _rtdb_get(path):
     """GET a node from RTDB. Returns parsed JSON or None."""
+    _check_db_writability()
+    if _use_local_db_fallback:
+        return _local_rtdb_get(path)
     try:
         # Try Admin SDK first
-        if firebase_admin and firebase_admin._apps and firebase_db:
+        if firebase_admin and firebase_admin._apps and firebase_db and _rtdb_initialized:
             ref = firebase_db.reference(path)
             return ref.get()
         # Fallback: REST API
@@ -164,8 +334,11 @@ def _rtdb_get(path):
 
 def _rtdb_set(path, data):
     """PUT (overwrite) a node in RTDB. Returns True on success."""
+    _check_db_writability()
+    if _use_local_db_fallback:
+        return _local_rtdb_set(path, data)
     try:
-        if firebase_admin and firebase_admin._apps and firebase_db:
+        if firebase_admin and firebase_admin._apps and firebase_db and _rtdb_initialized:
             ref = firebase_db.reference(path)
             ref.set(data)
             return True
@@ -182,8 +355,11 @@ def _rtdb_set(path, data):
 
 def _rtdb_update(path, data):
     """PATCH (partial update) a node in RTDB. Returns True on success."""
+    _check_db_writability()
+    if _use_local_db_fallback:
+        return _local_rtdb_update(path, data)
     try:
-        if firebase_admin and firebase_admin._apps and firebase_db:
+        if firebase_admin and firebase_admin._apps and firebase_db and _rtdb_initialized:
             ref = firebase_db.reference(path)
             ref.update(data)
             return True
@@ -200,8 +376,11 @@ def _rtdb_update(path, data):
 
 def _rtdb_push(path, data):
     """POST (push with auto-ID) a node to RTDB. Returns the new key, or None."""
+    _check_db_writability()
+    if _use_local_db_fallback:
+        return _local_rtdb_push(path, data)
     try:
-        if firebase_admin and firebase_admin._apps and firebase_db:
+        if firebase_admin and firebase_admin._apps and firebase_db and _rtdb_initialized:
             ref = firebase_db.reference(path)
             new_ref = ref.push(data)
             return new_ref.key
@@ -218,8 +397,11 @@ def _rtdb_push(path, data):
 
 def _rtdb_delete(path):
     """DELETE a node from RTDB. Returns True on success."""
+    _check_db_writability()
+    if _use_local_db_fallback:
+        return _local_rtdb_delete(path)
     try:
-        if firebase_admin and firebase_admin._apps and firebase_db:
+        if firebase_admin and firebase_admin._apps and firebase_db and _rtdb_initialized:
             ref = firebase_db.reference(path)
             ref.delete()
             return True
@@ -965,14 +1147,17 @@ def update_complaint(complaint_id):
 
     worker_id = (request.form.get('worker_id') or '').strip()
 
-    update_complaint_data(complaint_id, {
+    success = update_complaint_data(complaint_id, {
         'status': request.form.get('status', complaint.get('status')),
         'department': request.form.get('department', complaint.get('department')),
         'remarks': request.form.get('remarks', complaint.get('remarks')),
         'worker_id': worker_id if worker_id else None,
     })
 
-    flash('Complaint updated successfully.', 'success')
+    if success:
+        flash('Complaint updated successfully.', 'success')
+    else:
+        flash('Failed to update complaint. Database write error.', 'danger')
 
     next_page = request.form.get('next', '')
     parsed = urlparse(next_page)
