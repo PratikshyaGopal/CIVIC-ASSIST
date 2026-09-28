@@ -50,11 +50,18 @@
             {% if complaint.image_path %}
             <div class="mt-6">
                 <p class="text-xs text-slate-500">Attachment</p>
+                {% if complaint.image_path.startswith('data:') or complaint.image_path.startswith('http') %}
+                <a href="{{ complaint.image_path }}" target="_blank" class="inline-block mt-2">
+                    <img src="{{ complaint.image_path }}" alt="Complaint image"
+                        class="w-full max-w-md rounded-lg border border-slate-200" />
+                </a>
+                {% else %}
                 <a href="{{ url_for('static', filename=complaint.image_path) }}" target="_blank"
                     class="inline-block mt-2">
                     <img src="{{ url_for('static', filename=complaint.image_path) }}" alt="Complaint image"
                         class="w-full max-w-md rounded-lg border border-slate-200" />
                 </a>
+                {% endif %}
             </div>
             {% endif %}
 

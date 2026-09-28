@@ -9,6 +9,7 @@ import json
 import re
 import logging
 import uuid
+import base64
 
 try:
     import jwt as pyjwt
@@ -988,13 +989,18 @@ def register_complaint():
                 file.save(full_path)
                 image_path = f"uploads/{unique_name}"
             except OSError:
-                # Vercel has a read-only filesystem — image cannot be saved.
-                # Inform the citizen so they're not confused about the missing photo.
-                flash(
-                    'Image upload is not available in the hosted version. '
-                    'Your complaint was still submitted successfully.',
-                    'warning'
-                )
+                # Vercel has a read-only filesystem — encode image directly to Base64 Data URI
+                try:
+                    file.seek(0)
+                    file_bytes = file.read()
+                    if file_bytes:
+                        ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else 'jpeg'
+                        mime = 'image/png' if ext == 'png' else ('image/gif' if ext == 'gif' else 'image/jpeg')
+                        b64_str = base64.b64encode(file_bytes).decode('utf-8')
+                        image_path = f"data:{mime};base64,{b64_str}"
+                except Exception as exc:
+                    app.logger.warning('Failed to encode image to base64: %s', exc)
+                    image_path = None
 
     complaint_dict = {
         'user_id': session['user_id'],
