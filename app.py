@@ -142,15 +142,21 @@ LOCAL_DB_PATH = os.path.join('instance', 'local_db.json')
 _use_local_db_fallback = False
 _write_test_done = False
 
+def _get_active_local_db_path():
+    if os.getenv('VERCEL'):
+        return os.path.join('/tmp', 'local_db.json')
+    return LOCAL_DB_PATH
+
 def load_local_db():
-    if not os.path.exists('instance'):
+    target_path = _get_active_local_db_path()
+    if not os.path.exists(os.path.dirname(target_path)):
         try:
-            os.makedirs('instance')
+            os.makedirs(os.path.dirname(target_path))
         except OSError:
             pass
-    if os.path.exists(LOCAL_DB_PATH):
+    if os.path.exists(target_path):
         try:
-            with open(LOCAL_DB_PATH, 'r', encoding='utf-8') as f:
+            with open(target_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
         except Exception:
             pass
@@ -171,11 +177,21 @@ def load_local_db():
     return initial
 
 def save_local_db(data):
+    target_path = _get_active_local_db_path()
     try:
-        with open(LOCAL_DB_PATH, 'w', encoding='utf-8') as f:
+        with open(target_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
+            return True
     except Exception as exc:
-        app.logger.error("Failed to save local db: %s", exc)
+        app.logger.error("Failed to save local db at %s: %s", target_path, exc)
+        if target_path != os.path.join('/tmp', 'local_db.json'):
+            try:
+                with open(os.path.join('/tmp', 'local_db.json'), 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2)
+                    return True
+            except Exception as tmp_exc:
+                app.logger.error("Failed to save fallback local db in /tmp: %s", tmp_exc)
+        return False
 
 def _parse_path(path):
     return [p for p in path.strip('/').split('/') if p]
@@ -668,6 +684,7 @@ def _verify_firebase_id_token_jwks(id_token):
         public_key,
         algorithms=['RS256'],
         audience=project_id,
+        leeway=60,
         options={'verify_exp': True},
     )
     return payload

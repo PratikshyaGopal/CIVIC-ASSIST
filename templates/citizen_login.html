@@ -179,12 +179,15 @@
 
         const normalizeFirebaseError = (error) => {
             const code = error?.code || '';
+            const msg = error?.message || '';
             if (code.includes('user-not-found') || code.includes('invalid-credential')) return 'Invalid credentials. Please check your details.';
             if (code.includes('wrong-password')) return 'Incorrect password.';
             if (code.includes('invalid-email')) return 'Please enter a valid email address.';
+            if (code.includes('operation-not-allowed')) return 'Email/Password sign-in is disabled in Firebase Console. Please enable it in Authentication settings.';
+            if (code.includes('unauthorized-domain') || code.includes('domain-not-allowed')) return 'This domain is not authorized in Firebase. Add your Vercel URL under Firebase Console -> Authentication -> Settings -> Authorized Domains.';
             if (code.includes('too-many-requests')) return 'Too many attempts. Try again later.';
             if (code.includes('network-request-failed')) return 'Network error. Please try again.';
-            return error?.message || 'Sign in failed. Please try again.';
+            return msg || 'Sign in failed. Please try again.';
         };
 
         async function resolveEmail(loginInput) {

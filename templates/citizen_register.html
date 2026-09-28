@@ -309,11 +309,14 @@
 
         const normalizeFirebaseError = (error) => {
             const code = error?.code || '';
+            const msg = error?.message || '';
             if (code.includes('email-already-in-use')) return 'This email is already registered.';
             if (code.includes('invalid-email')) return 'Please enter a valid email address.';
             if (code.includes('weak-password')) return 'Password is too weak. Use at least 8 characters.';
+            if (code.includes('operation-not-allowed')) return 'Email/Password sign-in is disabled in Firebase Console. Please enable it in Authentication settings.';
+            if (code.includes('unauthorized-domain') || code.includes('domain-not-allowed')) return 'This domain is not authorized in Firebase. Add your Vercel URL under Firebase Console -> Authentication -> Settings -> Authorized Domains.';
             if (code.includes('network-request-failed')) return 'Network error. Please try again.';
-            return error?.message || 'Registration failed. Please try again.';
+            return msg || 'Registration failed. Please try again.';
         };
 
         form.addEventListener('submit', async (event) => {
