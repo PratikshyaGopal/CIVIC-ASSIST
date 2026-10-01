@@ -587,6 +587,18 @@ def inject_firebase_config():
     return {'firebase_web_config': app.config.get('FIREBASE_WEB_CONFIG', {})}
 
 
+@app.route('/favicon.ico')
+def favicon():
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        '<rect width="64" height="64" rx="12" fill="#137fec"/>'
+        '<path d="M12 26h40M17 51h30M20 46V31h24v15M27 46V31m10 0v15M18 24l14-11 14 11" '
+        'fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>'
+        '</svg>'
+    )
+    return app.response_class(svg, mimetype='image/svg+xml')
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
