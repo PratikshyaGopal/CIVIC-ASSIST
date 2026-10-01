@@ -37,6 +37,7 @@ This project demonstrates practical implementation of:
 - AI-powered sentiment and emotion analysis
 - Secure session management and authentication
 - Responsive web interface
+- Custom CivicAssist browser favicon
 - Deployment-ready architecture
 
 ---
@@ -80,7 +81,7 @@ The project also integrates AI-based NLP techniques for analyzing user feedback 
 ---
 
 # 🖼️ Screenshots
-Real application screenshots are included in the `screenshots/` folder and displayed below.
+The screenshots below are current application captures with consistent landscape framing (1079 x 674). The `complaint-form.png` capture shows the citizen registration page.
 
 <table style="width:100%; table-layout:fixed;">
   <tr>
@@ -241,6 +242,8 @@ FIREBASE_WEB_CONFIG_JSON=
 FIREBASE_SERVICE_ACCOUNT_JSON=
 FIREBASE_SERVICE_ACCOUNT_PATH=
 ```
+
+Firebase credentials and Realtime Database permissions must be configured for registration, login, and complaint data operations. If these operations return HTTP 401, verify the service account credentials and database rules. Do not commit service-account keys.
 
 ---
 
