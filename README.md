@@ -81,7 +81,7 @@ The project also integrates AI-based NLP techniques for analyzing user feedback 
 ---
 
 # 🖼️ Screenshots
-The screenshots below are current application captures with consistent landscape framing (1079 x 674). The `complaint-form.png` capture shows the citizen registration page.
+The screenshots below show the main application pages in consistent landscape framing (1079 x 674). Dashboard and management views use fictional sample data.
 
 <table style="width:100%; table-layout:fixed;">
   <tr>
@@ -90,8 +90,18 @@ The screenshots below are current application captures with consistent landscape
       <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Homepage</p>
     </td>
     <td style="padding:8px; vertical-align:top; width:50%;">
-      <img src="screenshots/complaint-form.png" alt="Citizen Registration" width="100%" />
+      <img src="screenshots/citizen-register.png" alt="Citizen Registration" width="100%" />
       <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Citizen Registration</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/citizen-login.png" alt="Citizen Login" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Citizen Login</p>
+    </td>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/citizen-dashboard.png" alt="Citizen Dashboard" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Citizen Dashboard</p>
     </td>
   </tr>
   <tr>
@@ -100,9 +110,46 @@ The screenshots below are current application captures with consistent landscape
       <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Admin Login</p>
     </td>
     <td style="padding:8px; vertical-align:top; width:50%;">
-      <img src="screenshots/admin-registration.png" alt="Admin Registration" width="100%" />
+      <img src="screenshots/admin-register.png" alt="Admin Registration" width="100%" />
       <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Admin Registration</p>
     </td>
+  </tr>
+  <tr>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/admin-dashboard.png" alt="Admin Dashboard" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Admin Dashboard</p>
+    </td>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/admin-complaints.png" alt="Admin Complaints" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Complaint Management</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/admin-reports.png" alt="Department Reports" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Department Reports</p>
+    </td>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/admin-users.png" alt="User Management" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">User Management</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/admin-workers.png" alt="Worker Management" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Worker Management</p>
+    </td>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/admin-settings.png" alt="Admin Settings" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Admin Settings</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:8px; vertical-align:top; width:50%;">
+      <img src="screenshots/complaint-detail.png" alt="Complaint Details" width="100%" />
+      <p style="text-align:center; font-size:0.95rem; margin:8px 0 0;">Complaint Details</p>
+    </td>
+    <td style="padding:8px; vertical-align:top; width:50%;"></td>
   </tr>
 </table>
 
