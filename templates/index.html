@@ -215,9 +215,10 @@
                     <p class="text-slate-500 dark:text-slate-400">Select a category to see current reports or start your
                         own submission.</p>
                 </div>
-                <button class="text-primary font-bold flex items-center gap-2 hover:gap-3 transition-all">
+                <a href="{{ url_for('citizen_register') }}"
+                    class="text-primary font-bold flex items-center gap-2 hover:gap-3 transition-all">
                     View All Categories <span class="material-symbols-outlined">arrow_forward</span>
-                </button>
+                </a>
             </div>
             <div class="grid grid-cols-2 lg:grid-cols-4 gap-6">
                 <div

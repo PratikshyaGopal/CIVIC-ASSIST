@@ -330,7 +330,7 @@
                         class="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                         <div class="flex items-center justify-between mb-6">
                             <h4 class="font-bold">Department Workload</h4>
-                            <button class="text-xs font-bold text-primary hover:underline">View All</button>
+                            <a href="{{ url_for('admin_reports') }}" class="text-xs font-bold text-primary hover:underline">View All</a>
                         </div>
                         <div class="space-y-4">
                             {% for d in dept_stats %}
