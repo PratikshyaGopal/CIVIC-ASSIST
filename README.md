@@ -192,7 +192,7 @@ These features help analyze complaint text and improve future complaint prioriti
 ## Clone Repository
 
 ```bash
-git clone https://github.com/bpriyanka-rao/CIVIC-ASSIST.git
+git clone https://github.com/PratikshyaGopal/CIVIC-ASSIST.git
 cd CIVIC-ASSIST
 ```
 
@@ -226,28 +226,22 @@ pip install -r requirements.txt
 
 ## Configure Environment Variables
 
-Create a `.env` file:
+The app reads configuration from process environment variables; it does not load a `.env` file automatically. In PowerShell, set the values in the same terminal used to run Flask:
 
-```env
-FLASK_APP=app.py
-FLASK_ENV=development
-FLASK_SECRET_KEY=your_secret_key
+```powershell
+$env:FLASK_SECRET_KEY = "replace-with-a-long-random-secret"
+$env:FIREBASE_WEB_CONFIG_JSON = '{"apiKey":"...","authDomain":"...","projectId":"...","appId":"...","databaseURL":"..."}'
+$env:FIREBASE_SERVICE_ACCOUNT_PATH = "C:\secure\firebase-service-account.json"
 ```
 
-Optional Firebase variables:
-
-```env
-FIREBASE_WEB_CONFIG_JSON=
-FIREBASE_SERVICE_ACCOUNT_JSON=
-FIREBASE_SERVICE_ACCOUNT_PATH=
-```
+Use the Firebase Web App configuration from your Firebase project. The service-account path is optional when the Realtime Database is intentionally configured for the app's REST fallback, but a service account is recommended for server-side database access. Configure Firebase Authentication and Realtime Database rules for the project. Do not commit service-account keys or place them in the repository.
 
 ---
 
 ## Run the Application
 
-```bash
-flask run
+```powershell
+flask --app app run
 ```
 
 Open in browser:
@@ -255,6 +249,13 @@ Open in browser:
 ```text
 http://127.0.0.1:5000
 ```
+
+## Recent Improvements and Validation
+
+- Citizen-only routes now reject admin sessions for the citizen dashboard, complaint submission, and profile updates.
+- The home-page category link and admin dashboard workload link now navigate to their corresponding pages.
+- Local smoke checks covered admin and citizen route behavior, complaint creation and updates, NLP analysis, worker management, profile/settings updates, dashboard navigation, and CSV export.
+- The smoke checks used an isolated in-memory Firebase REST mock. They validate local routes and UI behavior, not live Firebase Authentication, database rules, or cloud persistence; configure a Firebase project to verify those integrations.
 
 ---
 

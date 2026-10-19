@@ -938,7 +938,7 @@ def citizen_firebase_login():
 
 @app.route('/citizen/dashboard')
 def citizen_dashboard():
-    if 'user_id' not in session:
+    if 'user_id' not in session or session.get('is_admin'):
         flash('Please login first.', 'warning')
         return redirect(url_for('citizen_login'))
 
@@ -963,7 +963,7 @@ def citizen_dashboard():
 
 @app.route('/citizen/register_complaint', methods=['POST'])
 def register_complaint():
-    if 'user_id' not in session:
+    if 'user_id' not in session or session.get('is_admin'):
         return redirect(url_for('citizen_login'))
 
     complaint_type = (request.form.get('complaint_type') or '').strip()
@@ -1031,7 +1031,7 @@ def citizen_logout():
 
 @app.route('/citizen/profile/update', methods=['POST'])
 def citizen_update_profile():
-    if 'user_id' not in session:
+    if 'user_id' not in session or session.get('is_admin'):
         flash('Please login first.', 'warning')
         return redirect(url_for('citizen_login'))
 
