@@ -21,7 +21,11 @@
         </div>
         {% endif %}
         {% endwith %}
-        <a href="{{ url_for('citizen_dashboard') }}" class="text-primary hover:underline">&larr; Back to Dashboard</a>
+        {% if is_admin %}
+        <a href="{{ url_for('admin_complaints') }}" class="text-primary hover:underline flex items-center gap-1">&larr; Back to Admin Complaints</a>
+        {% else %}
+        <a href="{{ url_for('citizen_dashboard') }}" class="text-primary hover:underline flex items-center gap-1">&larr; Back to Citizen Dashboard</a>
+        {% endif %}
         <h1 class="text-2xl font-bold mt-4">Complaint #CA-{{ complaint.id }}</h1>
         <p class="text-sm text-slate-500">Submitted: {{ complaint.created_at | format_date('%Y-%m-%d %H:%M') }}</p>
 

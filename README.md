@@ -1,4 +1,4 @@
-﻿# CIVIC-ASSIST
+# CIVIC-ASSIST
 ### Smart Civic Complaint Management & Public Service Platform
 
 ![Python](https://img.shields.io/badge/Python-3-blue?style=for-the-badge&logo=python)
@@ -139,14 +139,17 @@ CIVIC-ASSIST/
 │   ├── citizen_login.html
 │   ├── citizen_register.html
 │   ├── complaint_detail.html
-│   ├── index.html
-│   └── additional HTML templates
+│   └── index.html
+│
+├── research/
+│   └── multimodal_emotion/
+│       ├── emotion_nlp_camera.py
+│       ├── emotion_nlp_embedding.py
+│       ├── emotion_nlp_tfidf.py
+│       └── requirements-ml.txt
 │
 ├── .gitignore
 ├── app.py
-├── emotion_nlp_camera.py
-├── emotion_nlp_embedding.py
-├── emotion_nlp_tfidf.py
 ├── requirements.txt
 ├── vercel.json
 └── README.md

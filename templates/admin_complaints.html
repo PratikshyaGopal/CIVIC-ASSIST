@@ -1,348 +1,247 @@
-<!DOCTYPE html>
-<html class="light" lang="en">
+{% extends "admin_base.html" %}
 
-<head>
-    <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>All Complaints — CivicAssist Admin</title>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-        rel="stylesheet" />
-    <script>
-        tailwind.config = {
-            darkMode: "class",
-            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#f6f7f8", "background-dark": "#101922" }, fontFamily: { "display": ["Public Sans", "sans-serif"] }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" } } }
-        }
-    </script>
-    <style>
-        body {
-            font-family: 'Public Sans', sans-serif
-        }
+{% block title %}All Complaints — CivicAssist Admin{% endblock %}
+{% block page_title %}All Complaints{% endblock %}
 
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
-        }
-    </style>
-</head>
+{% block content %}
+<!-- Filters -->
+<div class="flex flex-wrap gap-3 items-center">
+    <input id="searchInput" oninput="filterTable()" type="text" placeholder="Search..."
+        class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-4 text-sm w-64 focus:ring-2 focus:ring-primary/20 outline-none" />
+    <select id="filterDept" onchange="filterTable()"
+        class="text-sm border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg py-2 pl-3 pr-10">
+        <option value="">All Departments</option>
+        <option value="Sanitation">Sanitation</option>
+        <option value="Roads & Traffic">Roads & Traffic</option>
+        <option value="Water Supply">Water Supply</option>
+        <option value="Electricity">Electricity</option>
+        <option value="Unassigned">Unassigned</option>
+    </select>
+    <select id="filterStatus" onchange="filterTable()"
+        class="text-sm border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg py-2 pl-3 pr-10">
+        <option value="">All Statuses</option>
+        <option value="Pending">Pending</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Resolved">Resolved</option>
+        <option value="Rejected">Rejected</option>
+    </select>
+</div>
 
-<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 antialiased">
-    <div class="flex min-h-screen">
-        <!-- Sidebar -->
-        <aside
-            class="w-64 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hidden lg:flex flex-col">
-            <div class="p-6 flex items-center gap-3">
-                <div class="bg-primary rounded-lg p-1.5 flex items-center justify-center text-white">
-                    <span class="material-symbols-outlined">account_balance</span>
-                </div>
+<!-- Complaints Table -->
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-50 dark:bg-slate-800/50">
+                <tr>
+                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">ID</th>
+                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Citizen & Subject</th>
+                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Department</th>
+                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Worker</th>
+                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
+                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                {% for c in complaints %}
+                <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap font-mono text-sm text-slate-600 dark:text-slate-400">#CR-{{ c.id }}</td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-3">
+                            <div
+                                class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-xs text-primary">
+                                {{ c.author_name[:2]|upper if c.author_name else 'NA' }}
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold">{{ c.author_name or 'Unknown' }}</p>
+                                <p class="text-xs text-slate-500">{{ c.complaint_type|capitalize }}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="text-sm bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{{ c.department or 'Unassigned' }}</span>
+                    </td>
+                    <td class="px-6 py-4 text-sm">
+                        {% if c.worker_name %}
+                        <span class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-1 rounded text-xs font-medium">{{ c.worker_name }}</span>
+                        {% else %}
+                        <span class="text-slate-400 text-xs">Unassigned</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-slate-500 dark:text-slate-400">{{ c.created_at | format_date('%b %d, %Y') }}</td>
+                    <td class="px-6 py-4">
+                        <span
+                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold {% if c.status == 'Resolved' %}bg-green-100 text-green-700{% elif c.status == 'In Progress' %}bg-primary/10 text-primary{% elif c.status == 'Rejected' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+                            {{ c.status }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex items-center justify-end gap-2">
+                            <button data-complaint-id="{{ c.id }}" data-status="{{ c.status }}"
+                                data-department="{{ c.department or 'Unassigned' }}"
+                                data-remarks="{{ c.remarks or '' }}"
+                                data-worker-id="{{ c.worker_id or '' }}"
+                                class="open-modal-btn p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                title="Update">
+                                <span class="material-symbols-outlined text-xl">edit_square</span>
+                            </button>
+                            <button data-complaint-id="{{ c.id }}"
+                                class="nlp-btn p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors"
+                                title="NLP Analysis">
+                                <span class="material-symbols-outlined text-xl">psychology</span>
+                            </button>
+                            <a href="{{ url_for('view_complaint', complaint_id=c.id) }}"
+                                class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                title="View">
+                                <span class="material-symbols-outlined text-xl">visibility</span>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="px-6 py-8 text-center text-slate-500">No complaints found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-800">
+        <p class="text-sm text-slate-500">Showing {{ complaints|length }} entries</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- Update Modal -->
+<div id="updateModal" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div
+        class="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-8 border border-slate-200 dark:border-slate-800">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-xl font-bold">Update Complaint</h3>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+        </div>
+        <form id="updateForm" method="post">
+            <input type="hidden" name="next" value="{{ url_for('admin_complaints') }}">
+            <div class="space-y-4">
                 <div>
-                    <h1 class="text-lg font-bold tracking-tight">CivicAssist</h1>
-                    <p class="text-xs text-slate-500">Admin Console</p>
-                </div>
-            </div>
-            <nav class="flex-1 px-4 space-y-1">
-                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2 mt-4">Main Menu
-                </div>
-                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    href="{{ url_for('admin_dashboard') }}"><span
-                        class="material-symbols-outlined text-[22px]">dashboard</span><span
-                        class="text-sm">Overview</span></a>
-                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary/10 text-primary font-medium"
-                    href="{{ url_for('admin_complaints') }}"><span
-                        class="material-symbols-outlined text-[22px]">inbox</span><span class="text-sm">All
-                        Complaints</span></a>
-                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    href="{{ url_for('admin_reports') }}"><span
-                        class="material-symbols-outlined text-[22px]">bar_chart</span><span class="text-sm">Department
-                        Reports</span></a>
-                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2 mt-8">System</div>
-                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    href="{{ url_for('admin_users') }}"><span
-                        class="material-symbols-outlined text-[22px]">group</span><span class="text-sm">User
-                        Management</span></a>
-                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    href="{{ url_for('admin_workers') }}"><span
-                        class="material-symbols-outlined text-[22px]">engineering</span><span
-                        class="text-sm">Workers</span></a>
-                <a class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    href="{{ url_for('admin_settings') }}"><span
-                        class="material-symbols-outlined text-[22px]">settings</span><span class="text-sm">Admin
-                        Settings</span></a>
-            </nav>
-            <div class="p-4 border-t border-slate-200 dark:border-slate-800">
-                <div class="flex items-center gap-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                    <div
-                        class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
-                        {{ admin.name[:2]|upper if admin else 'AD' }}</div>
-                    <div class="overflow-hidden">
-                        <p class="text-sm font-semibold truncate">{{ admin.name if admin else 'Admin' }}</p>
-                        <p class="text-xs text-slate-500 truncate">{{ admin.email if admin else '' }}</p>
-                    </div>
-                </div>
-                <a href="{{ url_for('admin_logout') }}"
-                    class="w-full mt-3 flex items-center justify-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors"><span
-                        class="material-symbols-outlined text-sm">logout</span>Logout</a>
-            </div>
-        </aside>
-        <!-- Main Content -->
-        <main class="flex-1 flex flex-col min-w-0 bg-background-light dark:bg-background-dark">
-            <header
-                class="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center px-8 sticky top-0 z-10">
-                <h2 class="text-xl font-bold tracking-tight">All Complaints</h2>
-            </header>
-            <div class="p-8 space-y-6">
-                {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="mb-4">{%
-                    for category, message in messages %}<div
-                        class="px-4 py-3 rounded-lg mb-2 text-sm font-medium {% if category == 'success' %}bg-green-100 text-green-700{% elif category == 'danger' %}bg-red-100 text-red-700{% elif category == 'warning' %}bg-yellow-100 text-yellow-700{% else %}bg-blue-100 text-blue-700{% endif %}">
-                        {{ message }}</div>{% endfor %}</div>{% endif %}{% endwith %}
-
-                <!-- Filters -->
-                <div class="flex flex-wrap gap-3 items-center">
-                    <input id="searchInput" oninput="filterTable()" type="text" placeholder="Search..."
-                        class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg py-2 px-4 text-sm w-64 focus:ring-2 focus:ring-primary/20" />
-                    <select id="filterDept" onchange="filterTable()"
-                        class="text-sm border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg py-2 pl-3 pr-10">
-                        <option value="">All Departments</option>
-                        <option value="Sanitation">Sanitation</option>
-                        <option value="Roads & Traffic">Roads & Traffic</option>
-                        <option value="Water Supply">Water Supply</option>
-                        <option value="Electricity">Electricity</option>
-                        <option value="Unassigned">Unassigned</option>
-                    </select>
-                    <select id="filterStatus" onchange="filterTable()"
-                        class="text-sm border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg py-2 pl-3 pr-10">
-                        <option value="">All Statuses</option>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Status</label>
+                    <select id="status" name="status"
+                        class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
                         <option value="Pending">Pending</option>
                         <option value="In Progress">In Progress</option>
                         <option value="Resolved">Resolved</option>
                         <option value="Rejected">Rejected</option>
                     </select>
                 </div>
-
-                <!-- Complaints Table -->
-                <div
-                    class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead class="bg-slate-50 dark:bg-slate-800/50">
-                                <tr>
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">ID
-                                    </th>
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                        Citizen & Subject</th>
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                        Department</th>
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                        Worker</th>
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date
-                                    </th>
-                                    <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                        Status</th>
-                                    <th
-                                        class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">
-                                        Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                {% for c in complaints %}
-                                <tr class="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                                    <td class="px-6 py-4 whitespace-nowrap font-mono text-sm text-slate-600">#CR-{{ c.id
-                                        }}</td>
-                                    <td class="px-6 py-4">
-                                        <div class="flex items-center gap-3">
-                                            <div
-                                                class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-xs text-primary">
-                                                {{ c.author_name[:2]|upper if c.author_name else 'NA' }}</div>
-                                            <div>
-                                                <p class="text-sm font-semibold">{{ c.author_name or 'Unknown' }}</p>
-                                                <p class="text-xs text-slate-500">{{ c.complaint_type|capitalize }}</p>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4"><span
-                                            class="text-sm bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{{
-                                            c.department or 'Unassigned' }}</span></td>
-                                    <td class="px-6 py-4 text-sm">
-                                        {% if c.worker_name %}
-                                        <span
-                                            class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-1 rounded text-xs font-medium">{{
-                                            c.worker_name }}</span>
-                                        {% else %}
-                                        <span class="text-slate-400 text-xs">Unassigned</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-slate-500">{{ c.created_at | format_date('%b %d,
-                                        %Y') }}</td>
-                                    <td class="px-6 py-4">
-                                        <span
-                                            class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold {% if c.status == 'Resolved' %}bg-green-100 text-green-700{% elif c.status == 'In Progress' %}bg-primary/10 text-primary{% elif c.status == 'Rejected' %}bg-red-100 text-red-700{% else %}bg-amber-100 text-amber-700{% endif %}">{{
-                                            c.status }}</span>
-                                    </td>
-                                    <td class="px-6 py-4 text-right">
-                                        <div class="flex items-center justify-end gap-2">
-                                            <button data-complaint-id="{{ c.id }}" data-status="{{ c.status }}"
-                                                data-department="{{ c.department or 'Unassigned' }}"
-                                                data-remarks="{{ c.remarks or '' }}"
-                                                data-worker-id="{{ c.worker_id or '' }}"
-                                                class="open-modal-btn p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                                                title="Update"><span
-                                                    class="material-symbols-outlined text-xl">edit_square</span></button>
-                                            <button data-complaint-id="{{ c.id }}"
-                                                class="nlp-btn p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-                                                title="NLP Analysis"><span
-                                                    class="material-symbols-outlined text-xl">psychology</span></button>
-                                            <a href="{{ url_for('view_complaint', complaint_id=c.id) }}"
-                                                class="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                                                title="View"><span
-                                                    class="material-symbols-outlined text-xl">visibility</span></a>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% else %}
-                                <tr>
-                                    <td colspan="7" class="px-6 py-8 text-center text-slate-500">No complaints found.
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-800">
-                        <p class="text-sm text-slate-500">Showing {{ complaints|length }} entries</p>
-                    </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Department</label>
+                    <select id="department" name="department"
+                        class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
+                        <option value="Unassigned">Unassigned</option>
+                        <option value="Sanitation">Sanitation</option>
+                        <option value="Roads & Traffic">Roads & Traffic</option>
+                        <option value="Water Supply">Water Supply</option>
+                        <option value="Electricity">Electricity</option>
+                        <option value="Public Health">Public Health</option>
+                    </select>
                 </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Remarks</label>
+                    <textarea id="remarks" name="remarks"
+                        class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5 min-h-[80px]"
+                        placeholder="Add remarks..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Assign Worker</label>
+                    <select id="worker_id" name="worker_id"
+                        class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
+                        <option value="">-- No Worker --</option>
+                        {% for w in workers %}
+                        <option value="{{ w.id }}">{{ w.name }} ({{ w.department }}{% if w.area %}, {{ w.area }}{% endif %})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit"
+                    class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined">save</span>Update Complaint
+                </button>
             </div>
-        </main>
+        </form>
     </div>
+</div>
 
-    <!-- Update Modal -->
-    <div id="updateModal" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div
-            class="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-8 border border-slate-200 dark:border-slate-800">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-xl font-bold">Update Complaint</h3>
-                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
-            </div>
-            <form id="updateForm" method="post">
-                <input type="hidden" name="next" value="{{ url_for('admin_complaints') }}">
-                <div class="space-y-4">
-                    <div><label
-                            class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Status</label>
-                        <select id="status" name="status"
-                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
-                            <option value="Pending">Pending</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Resolved">Resolved</option>
-                            <option value="Rejected">Rejected</option>
-                        </select>
-                    </div>
-                    <div><label
-                            class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Department</label>
-                        <select id="department" name="department"
-                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
-                            <option value="Unassigned">Unassigned</option>
-                            <option value="Sanitation">Sanitation</option>
-                            <option value="Roads & Traffic">Roads & Traffic</option>
-                            <option value="Water Supply">Water Supply</option>
-                            <option value="Electricity">Electricity</option>
-                            <option value="Public Health">Public Health</option>
-                        </select>
-                    </div>
-                    <div><label
-                            class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Remarks</label>
-                        <textarea id="remarks" name="remarks"
-                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5 min-h-[80px]"
-                            placeholder="Add remarks..."></textarea>
-                    </div>
-                    <div><label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Assign
-                            Worker</label>
-                        <select id="worker_id" name="worker_id"
-                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-4 py-2.5">
-                            <option value="">-- No Worker --</option>
-                            {% for w in workers %}<option value="{{ w.id }}">{{ w.name }} ({{ w.department }}{% if
-                                w.area %}, {{ w.area }}{% endif %})</option>{% endfor %}
-                        </select>
-                    </div>
-                    <button type="submit"
-                        class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-3 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2">
-                        <span class="material-symbols-outlined">save</span>Update Complaint</button>
-                </div>
-            </form>
+<!-- NLP Analysis Modal -->
+<div id="nlpModal" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-8 border border-slate-200 dark:border-slate-800">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-xl font-bold flex items-center gap-2">
+                <span class="material-symbols-outlined text-purple-600">psychology</span> NLP Analysis
+            </h3>
+            <button onclick="document.getElementById('nlpModal').style.display='none'" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+        </div>
+        <div id="nlpContent" class="space-y-4">
+            <p class="text-slate-400 text-sm">Loading...</p>
         </div>
     </div>
+</div>
+{% endblock %}
 
-    <!-- NLP Analysis Modal -->
-    <div id="nlpModal" style="display:none;" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div class="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-8 border border-slate-200 dark:border-slate-800">
-            <div class="flex items-center justify-between mb-6">
-                <h3 class="text-xl font-bold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-purple-600">psychology</span> NLP Analysis
-                </h3>
-                <button onclick="document.getElementById('nlpModal').style.display='none'" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
-            </div>
-            <div id="nlpContent" class="space-y-4">
-                <p class="text-slate-400 text-sm">Loading...</p>
-            </div>
-        </div>
-    </div>
-
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
-    <script>
-        // Modal — use data-* attributes to avoid JS quoting issues with special chars
-        document.addEventListener('click', function (e) {
-            var btn = e.target.closest('.open-modal-btn');
-            if (!btn) return;
-            document.getElementById('updateForm').action = '/admin/update_complaint/' + btn.dataset.complaintId;
-            document.getElementById('status').value = btn.dataset.status || '';
-            document.getElementById('department').value = btn.dataset.department || '';
-            document.getElementById('remarks').value = btn.dataset.remarks || '';
-            var ws = document.getElementById('worker_id');
-            if (ws) ws.value = btn.dataset.workerId || '';
-            document.getElementById('updateModal').style.display = 'flex';
+{% block scripts %}
+<script>
+    // Modal — use data-* attributes to avoid JS quoting issues
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.open-modal-btn');
+        if (!btn) return;
+        document.getElementById('updateForm').action = '/admin/update_complaint/' + btn.dataset.complaintId;
+        document.getElementById('status').value = btn.dataset.status || '';
+        document.getElementById('department').value = btn.dataset.department || '';
+        document.getElementById('remarks').value = btn.dataset.remarks || '';
+        var ws = document.getElementById('worker_id');
+        if (ws) ws.value = btn.dataset.workerId || '';
+        document.getElementById('updateModal').style.display = 'flex';
+    });
+    function closeModal() { document.getElementById('updateModal').style.display = 'none'; }
+    window.addEventListener('click', function (e) { if (e.target.id === 'updateModal') closeModal(); });
+    
+    function filterTable() {
+        var search = (document.getElementById('searchInput').value || '').toLowerCase();
+        var dept = document.getElementById('filterDept').value;
+        var status = document.getElementById('filterStatus').value;
+        document.querySelectorAll('tbody tr').forEach(function (row) {
+            if (row.cells.length < 5) return;
+            var text = row.textContent.toLowerCase();
+            var rDept = row.cells[2].textContent.trim();
+            var rStatus = row.cells[5].textContent.trim();
+            row.style.display = (!search || text.indexOf(search) > -1) && (!dept || rDept === dept) && (!status || rStatus === status) ? '' : 'none';
         });
-        function closeModal() { document.getElementById('updateModal').style.display = 'none'; }
-        window.addEventListener('click', function (e) { if (e.target.id === 'updateModal') closeModal(); });
-        function filterTable() {
-            var search = (document.getElementById('searchInput').value || '').toLowerCase();
-            var dept = document.getElementById('filterDept').value;
-            var status = document.getElementById('filterStatus').value;
-            document.querySelectorAll('tbody tr').forEach(function (row) {
-                if (row.cells.length < 5) return;
-                var text = row.textContent.toLowerCase();
-                var rDept = row.cells[2].textContent.trim();
-                var rStatus = row.cells[5].textContent.trim();
-                row.style.display = (!search || text.indexOf(search) > -1) && (!dept || rDept === dept) && (!status || rStatus === status) ? '' : 'none';
-            });
-        }
+    }
 
-        // NLP Analyze handler
-        document.addEventListener('click', function (e) {
-            var btn = e.target.closest('.nlp-btn');
-            if (!btn) return;
-            var id = btn.dataset.complaintId;
-            var modal = document.getElementById('nlpModal');
-            var content = document.getElementById('nlpContent');
-            content.innerHTML = '<p class="text-slate-400 text-sm">Analyzing...</p>';
-            modal.style.display = 'flex';
-            fetch('/admin/nlp_analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ complaint_id: id })
-            }).then(function (r) { return r.json(); }).then(function (data) {
-                if (data.error) { content.innerHTML = '<p class="text-red-500 text-sm">' + data.error + '</p>'; return; }
-                var sentColor = data.sentiment === 'Negative' ? 'bg-red-100 text-red-700' : data.sentiment === 'Positive' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
-                var kwHtml = data.keywords.length ? data.keywords.map(function (k) { return '<span class="bg-purple-100 text-purple-700 rounded-full px-2 py-0.5 text-xs font-medium">' + k + '</span>'; }).join(' ') : '<span class="text-slate-400 text-xs">No keywords found</span>';
-                content.innerHTML =
-                    '<div><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Keywords</p><div class="flex flex-wrap gap-1">' + kwHtml + '</div></div>' +
-                    '<div class="flex gap-4 mt-2"><div><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Suggested Dept</p><span class="bg-blue-100 text-blue-700 rounded-lg px-3 py-1 text-sm font-medium">' + data.suggested_department + '</span></div>' +
-                    '<div><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Sentiment</p><span class="rounded-lg px-3 py-1 text-sm font-medium ' + sentColor + '">' + data.sentiment + '</span></div></div>' +
-                    '<p class="text-xs text-slate-400 mt-2">Word count: ' + data.word_count + '</p>';
-            }).catch(function () {
-                content.innerHTML = '<p class="text-red-500 text-sm">Analysis service unavailable.</p>';
-            });
+    // NLP Analyze handler
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('.nlp-btn');
+        if (!btn) return;
+        var id = btn.dataset.complaintId;
+        var modal = document.getElementById('nlpModal');
+        var content = document.getElementById('nlpContent');
+        content.innerHTML = '<p class="text-slate-400 text-sm">Analyzing...</p>';
+        modal.style.display = 'flex';
+        fetch('/admin/nlp_analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ complaint_id: id })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (data.error) { content.innerHTML = '<p class="text-red-500 text-sm">' + data.error + '</p>'; return; }
+            var sentColor = data.sentiment === 'Negative' ? 'bg-red-100 text-red-700' : data.sentiment === 'Positive' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700';
+            var kwHtml = data.keywords.length ? data.keywords.map(function (k) { return '<span class="bg-purple-100 text-purple-700 rounded-full px-2 py-0.5 text-xs font-medium">' + k + '</span>'; }).join(' ') : '<span class="text-slate-400 text-xs">No keywords found</span>';
+            content.innerHTML =
+                '<div><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Keywords</p><div class="flex flex-wrap gap-1">' + kwHtml + '</div></div>' +
+                '<div class="flex gap-4 mt-2"><div><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Suggested Dept</p><span class="bg-blue-100 text-blue-700 rounded-lg px-3 py-1 text-sm font-medium">' + data.suggested_department + '</span></div>' +
+                '<div><p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Sentiment</p><span class="rounded-lg px-3 py-1 text-sm font-medium ' + sentColor + '">' + data.sentiment + '</span></div></div>' +
+                '<p class="text-xs text-slate-400 mt-2">Word count: ' + data.word_count + '</p>';
+        }).catch(function () {
+            content.innerHTML = '<p class="text-red-500 text-sm">Analysis service unavailable.</p>';
         });
-    </script>
-</body>
-
-</html>
+    });
+</script>
+{% endblock %}

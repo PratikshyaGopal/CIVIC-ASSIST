@@ -50,6 +50,9 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 if os.getenv('VERCEL'):
     app.config['SESSION_COOKIE_SECURE'] = True
 
+# Security Passkey for unauthorized admin creation prevention
+ADMIN_REGISTRATION_KEY = os.getenv('ADMIN_REGISTRATION_KEY', 'CivicAdminAuth2026!')
+
 # Firebase Web SDK Configuration (used by templates)
 DEFAULT_FIREBASE_WEB_CONFIG = {
     "apiKey": "AIzaSyDe3fQO4t5Wnp4URpQOv5fsfDoKOuxrO4I",
@@ -1093,10 +1096,30 @@ def admin_login():
 @app.route('/admin/register', methods=['GET', 'POST'])
 def admin_register():
     if request.method == 'POST':
+        # If user is not already an authenticated admin, require the authorization passkey
+        if not session.get('is_admin'):
+            admin_key = (request.form.get('admin_key') or '').strip()
+            if not admin_key or admin_key != ADMIN_REGISTRATION_KEY:
+                flash('Invalid or missing Admin Security Passkey. Registration rejected.', 'danger')
+                return redirect(url_for('admin_register'))
+
         username = (request.form.get('username') or '').strip()
         email = (request.form.get('email') or '').strip().lower()
         password = request.form.get('password') or ''
+        confirm_password = request.form.get('confirm_password') or ''
         name = (request.form.get('name') or '').strip()
+
+        if not username or not email or not name or not password:
+            flash('All required fields must be filled.', 'danger')
+            return redirect(url_for('admin_register'))
+
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'danger')
+            return redirect(url_for('admin_register'))
+
+        if password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return redirect(url_for('admin_register'))
 
         if get_user_by_username(username) or get_user_by_email(email):
             flash('Username or Email already exists!', 'danger')
@@ -1155,7 +1178,8 @@ def admin_dashboard():
                            complaints=all_complaints,
                            admin=admin_user,
                            dept_stats=dept_stats,
-                           workers=all_workers)
+                           workers=all_workers,
+                           page='dashboard')
 
 
 @app.route('/admin/update_complaint/<complaint_id>', methods=['POST'])
@@ -1214,7 +1238,8 @@ def admin_complaints():
     return render_template('admin_complaints.html',
                            complaints=all_complaints,
                            admin=admin_user,
-                           workers=all_workers)
+                           workers=all_workers,
+                           page='complaints')
 
 
 # --- DEPARTMENT REPORTS ---
@@ -1247,7 +1272,8 @@ def admin_reports():
     return render_template('admin_reports.html',
                            dept_data=dept_data,
                            total_complaints=len(all_complaints),
-                           admin=admin_user)
+                           admin=admin_user,
+                           page='reports')
 
 
 # --- USER MANAGEMENT ---
@@ -1260,12 +1286,21 @@ def admin_users():
 
     admin_user = get_user_by_id(session.get('user_id'))
     all_users_raw = _all_users()
+    all_complaints = get_all_complaints()
+
+    user_complaints_map = {}
+    for c in all_complaints:
+        uid = str(c.get('user_id', ''))
+        if uid:
+            user_complaints_map.setdefault(uid, []).append(c)
+
     citizens = []
     admins = []
     for uid, u in all_users_raw.items():
         if not isinstance(u, dict):
             continue
         u['id'] = uid
+        u['complaints'] = user_complaints_map.get(str(uid), [])
         if u.get('is_admin'):
             admins.append(u)
         else:
@@ -1273,7 +1308,7 @@ def admin_users():
     citizens.sort(key=lambda x: x.get('name', ''))
     admins.sort(key=lambda x: x.get('name', ''))
 
-    return render_template('admin_users.html', citizens=citizens, admins=admins, admin=admin_user)
+    return render_template('admin_users.html', citizens=citizens, admins=admins, admin=admin_user, page='users')
 
 
 @app.route('/admin/users/<user_id>/delete', methods=['POST'])
@@ -1322,7 +1357,7 @@ def admin_workers():
     admin_user = get_user_by_id(session.get('user_id'))
     workers = get_all_workers()
     workers.sort(key=lambda x: x.get('created_at', ''), reverse=True)
-    return render_template('admin_workers.html', workers=workers, admin=admin_user)
+    return render_template('admin_workers.html', workers=workers, admin=admin_user, page='workers')
 
 
 @app.route('/admin/workers/<worker_id>/delete', methods=['POST'])
@@ -1374,20 +1409,27 @@ def admin_settings():
 
     if request.method == 'POST':
         updates = {
-            'name': request.form.get('name', admin_user.get('name', '')),
-            'email': request.form.get('email', admin_user.get('email', '')),
-            'phone': request.form.get('phone', admin_user.get('phone', '')),
+            'name': (request.form.get('name') or admin_user.get('name', '')).strip(),
+            'email': (request.form.get('email') or admin_user.get('email', '')).strip().lower(),
+            'phone': (request.form.get('phone') or admin_user.get('phone', '')).strip(),
         }
-        new_password = request.form.get('new_password')
-        if new_password and len(new_password) >= 6:
+        new_password = (request.form.get('new_password') or '').strip()
+        confirm_password = (request.form.get('confirm_password') or '').strip()
+        if new_password:
+            if len(new_password) < 8:
+                flash('New password must be at least 8 characters long.', 'danger')
+                return redirect(url_for('admin_settings'))
+            if confirm_password and new_password != confirm_password:
+                flash('New password and confirmation do not match.', 'danger')
+                return redirect(url_for('admin_settings'))
             updates['password_hash'] = generate_password_hash(new_password)
-            flash('Password updated.', 'success')
+            flash('Password updated successfully.', 'success')
 
         update_user(session.get('user_id'), updates)
-        flash('Settings saved.', 'success')
+        flash('Settings saved successfully.', 'success')
         return redirect(url_for('admin_settings'))
 
-    return render_template('admin_settings.html', admin=admin_user)
+    return render_template('admin_settings.html', admin=admin_user, page='settings')
 
 
 @app.route('/admin/logout')
@@ -1399,11 +1441,23 @@ def admin_logout():
 
 @app.route('/complaint/<complaint_id>')
 def view_complaint(complaint_id):
+    if 'user_id' not in session and not session.get('is_admin'):
+        flash('Please log in to view complaint details.', 'warning')
+        return redirect(url_for('citizen_login'))
+
     complaint = get_complaint_by_id(complaint_id)
     if not complaint:
         flash('Complaint not found.', 'danger')
-        return redirect(url_for('index'))
-    return render_template('complaint_detail.html', complaint=complaint)
+        return redirect(url_for('citizen_dashboard' if 'user_id' in session and not session.get('is_admin') else 'admin_dashboard'))
+
+    # Access control: Admins can view all; Citizens can only view their own
+    is_admin = bool(session.get('is_admin'))
+    current_user_id = str(session.get('user_id', ''))
+    if not is_admin and str(complaint.get('user_id', '')) != current_user_id:
+        flash('Access denied. You do not have permission to view this complaint.', 'danger')
+        return redirect(url_for('citizen_dashboard'))
+
+    return render_template('complaint_detail.html', complaint=complaint, is_admin=is_admin)
 
 
 # --- NLP ANALYSIS (admin) ---
@@ -1503,18 +1557,19 @@ def seed_default_admin():
     for uid, u in _all_users().items():
         if u.get('is_admin'):
             return  # at least one admin exists
-    print("No admin found in RTDB. Creating default admin account (admin / admin123)...")
+    default_pwd = os.getenv('ADMIN_DEFAULT_PASSWORD', 'Admin@Civic2026!')
+    print(f"No admin found in RTDB. Creating initial admin account (admin / {default_pwd})...")
     admin_id = str(uuid.uuid4()).replace('-', '')[:20]
     save_user(admin_id, {
         'username': 'admin',
-        'password_hash': generate_password_hash('admin123'),
+        'password_hash': generate_password_hash(default_pwd),
         'name': 'System Admin',
         'email': 'admin@civic.local',
         'phone': '',
         'address': '',
         'is_admin': True,
     })
-    print(f"Default admin created with ID: {admin_id}")
+    print(f"Initial admin created with ID: {admin_id}. (Note: Please change password upon initial login)")
 
 
 # Seed default admin at module load time so it runs under any WSGI server
